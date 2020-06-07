@@ -34,10 +34,6 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
   NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
 
   if (event->type == OW_ATTACH) {
-    napi_value e_pid;
-    status = napi_create_uint32(env, event->data.attach.pid, &e_pid);
-    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
-
     napi_value e_has_access;
     if (event->data.attach.has_access == -1) {
       status = napi_get_undefined(env, &e_has_access);
@@ -48,10 +44,81 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
       NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_boolean");
     }
 
+    napi_value e_is_fullscreen;
+    if (event->data.attach.is_fullscreen == -1) {
+      status = napi_get_undefined(env, &e_is_fullscreen);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_undefined");
+    }
+    else {
+      status = napi_get_boolean(env, event->data.attach.is_fullscreen == 1, &e_is_fullscreen);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_boolean");
+    }
+
+    napi_value e_x;
+    status = napi_create_int32(env, event->data.attach.bounds.x, &e_x);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_int32");
+
+    napi_value e_y;
+    status = napi_create_int32(env, event->data.attach.bounds.y, &e_y);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_int32");
+
+    napi_value e_width;
+    status = napi_create_uint32(env, event->data.attach.bounds.width, &e_width);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
+
+    napi_value e_height;
+    status = napi_create_uint32(env, event->data.attach.bounds.height, &e_height);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
+
     napi_property_descriptor descriptors[] = {
-      { "type",      NULL, NULL, NULL, NULL, e_type,       napi_enumerable, NULL },
-      { "pid",       NULL, NULL, NULL, NULL, e_pid,        napi_enumerable, NULL },
-      { "hasAccess", NULL, NULL, NULL, NULL, e_has_access, napi_enumerable, NULL },
+      { "type",         NULL, NULL, NULL, NULL, e_type,          napi_enumerable, NULL },
+      { "hasAccess",    NULL, NULL, NULL, NULL, e_has_access,    napi_enumerable, NULL },
+      { "isFullscreen", NULL, NULL, NULL, NULL, e_is_fullscreen, napi_enumerable, NULL },
+      { "x",            NULL, NULL, NULL, NULL, e_x,             napi_enumerable, NULL },
+      { "y",            NULL, NULL, NULL, NULL, e_y,             napi_enumerable, NULL },
+      { "width",        NULL, NULL, NULL, NULL, e_width,         napi_enumerable, NULL },
+      { "height",       NULL, NULL, NULL, NULL, e_height,        napi_enumerable, NULL },
+    };
+    status = napi_define_properties(env, event_obj, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");
+    return event_obj;
+  }
+  else if (event->type == OW_FULLSCREEN) {
+    napi_value e_is_fullscreen;
+    status = napi_get_boolean(env, event->data.fullscreen.is_fullscreen, &e_is_fullscreen);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_boolean");
+
+    napi_property_descriptor descriptors[] = {
+      { "type",         NULL, NULL, NULL, NULL, e_type,          napi_enumerable, NULL },
+      { "isFullscreen", NULL, NULL, NULL, NULL, e_is_fullscreen, napi_enumerable, NULL },
+    };
+    status = napi_define_properties(env, event_obj, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");
+    return event_obj;
+  }
+  else if (event->type == OW_MOVERESIZE) {
+    napi_value e_x;
+    status = napi_create_int32(env, event->data.moveresize.bounds.x, &e_x);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_int32");
+
+    napi_value e_y;
+    status = napi_create_int32(env, event->data.moveresize.bounds.y, &e_y);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_int32");
+
+    napi_value e_width;
+    status = napi_create_uint32(env, event->data.moveresize.bounds.width, &e_width);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
+
+    napi_value e_height;
+    status = napi_create_uint32(env, event->data.moveresize.bounds.height, &e_height);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
+
+    napi_property_descriptor descriptors[] = {
+      { "type",   NULL, NULL, NULL, NULL, e_type,   napi_enumerable, NULL },
+      { "x",      NULL, NULL, NULL, NULL, e_x,      napi_enumerable, NULL },
+      { "y",      NULL, NULL, NULL, NULL, e_y,      napi_enumerable, NULL },
+      { "width",  NULL, NULL, NULL, NULL, e_width,  napi_enumerable, NULL },
+      { "height", NULL, NULL, NULL, NULL, e_height, napi_enumerable, NULL },
     };
     status = napi_define_properties(env, event_obj, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
     NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");

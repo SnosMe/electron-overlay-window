@@ -4,6 +4,22 @@
 #include <stdint.h>
 #include <uv.h>
 
+enum ow_event_type {
+  // target window is found
+  OW_ATTACH = 1,
+  // target window is active/foreground
+  OW_FOCUS,
+  // target window lost focus
+  OW_BLUR,
+  // target window is destroyed
+  OW_DETACH,
+  // target window fullscreen changed
+  // only emitted on X11 backend
+  OW_FULLSCREEN,
+  // target window changed position or resized
+  OW_MOVERESIZE,
+};
+
 struct ow_window_bounds {
   int32_t x;
   int32_t y;
@@ -11,26 +27,33 @@ struct ow_window_bounds {
   uint32_t height;
 };
 
-enum ow_event_type {
-  OW_ATTACH = 1,
-  OW_FOCUS,
-  OW_BLUR,
-  OW_DETACH
+struct ow_event_attach {
+  // defined only on Windows
+  int has_access;
+  // defined only on Linux, only if changed
+  int is_fullscreen;
+  //
+  struct ow_window_bounds bounds;
 };
 
-struct ow_event_attach {
-  uint32_t pid;
-  int has_access;
+struct ow_event_fullscreen {
+  bool is_fullscreen;
+};
+
+struct ow_event_moveresize {
+  struct ow_window_bounds bounds;
 };
 
 struct ow_event {
   enum ow_event_type type;
   union {
     struct ow_event_attach attach;
+    struct ow_event_fullscreen fullscreen;
+    struct ow_event_moveresize moveresize;
   } data;
 };
 
-static uv_thread_t hook_tid = NULL;
+static uv_thread_t hook_tid;
 
 void ow_start_hook(char* target_window_title, void* overlay_window_id);
 

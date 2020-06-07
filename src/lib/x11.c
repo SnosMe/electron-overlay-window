@@ -185,18 +185,33 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
   // listen for `_NET_WM_STATE` fullscreen and window move/resize/destroy
   uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY };
   xcb_change_window_attributes(x_conn, target_info->window_id, XCB_CW_EVENT_MASK, mask);
-  xcb_flush(x_conn);
 
   struct ow_event e = {
     .type = OW_ATTACH,
     .data.attach = {
-      .has_access = -1
+      .has_access = -1,
+      .is_fullscreen = -1
     }
   };
-  ow_emit_event(&e);
-  target_info->is_focused = true;
-  e.type = OW_FOCUS;
-  ow_emit_event(&e);
+  bool is_fullscreen;
+  if (
+    is_fullscreen_window(target_info->window_id, &is_fullscreen) &&
+    get_content_bounds(target_info->window_id, &e.data.attach.bounds)
+  ) {
+    if (is_fullscreen != target_info->is_fullscreen) {
+      target_info->is_fullscreen = is_fullscreen;
+      e.data.attach.is_fullscreen = is_fullscreen;
+    }
+    // emit OW_ATTACH
+    ow_emit_event(&e);
+
+    target_info->is_focused = true;
+    e.type = OW_FOCUS;
+    ow_emit_event(&e);
+  } else {
+    // something went wrong, did the target window die right after becoming active?
+    target_info->window_id = XCB_WINDOW_NONE;
+  }
 }
 
 static void hook_proc(xcb_generic_event_t* generic_event) {
@@ -205,6 +220,7 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
     if (event->window == target_info.window_id) {
       target_info.is_destroyed = true;
       check_and_handle_window(XCB_WINDOW_NONE, &target_info);
+      xcb_flush(x_conn);
     }
     return;
   }
@@ -212,6 +228,7 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
     xcb_configure_notify_event_t* event = (xcb_configure_notify_event_t*)generic_event;
     if (event->window == target_info.window_id) {
       handle_moveresize_xevent(&target_info);
+      xcb_flush(x_conn);
     }
     return;
   }
@@ -230,16 +247,17 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
         uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };
         xcb_change_window_attributes(x_conn, active_window, XCB_CW_EVENT_MASK, mask);
       }
-      xcb_flush(x_conn);
       check_and_handle_window(active_window, &target_info);
+      xcb_flush(x_conn);
     } else if (event->window == target_info.window_id && event->atom == ATOM_NET_WM_STATE) {
       handle_fullscreen_xevent(&target_info);
+      xcb_flush(x_conn);
     } else if (event->window == active_window && event->atom == ATOM_NET_WM_NAME) {
       check_and_handle_window(active_window, &target_info);
+      xcb_flush(x_conn);
     }
     return;
   }
-  printf("Event, %d\n", generic_event->response_type);
 }
 
 static void hook_thread(void* _arg) {
@@ -273,9 +291,9 @@ static void hook_thread(void* _arg) {
     // listen for `_NET_WM_NAME`
     uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };
     xcb_change_window_attributes(x_conn, active_window, XCB_CW_EVENT_MASK, mask);
-    xcb_flush(x_conn);
     check_and_handle_window(active_window, &target_info);
   }
+  xcb_flush(x_conn);
 
   xcb_generic_event_t* event;
   while ((event = xcb_wait_for_event(x_conn))) {

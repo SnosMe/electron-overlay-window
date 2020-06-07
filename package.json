@@ -43,5 +43,8 @@
   "gypfile": true,
   "engines": {
     "node": ">= 10"
+  },
+  "peerDependencies": {
+    "electron": "8.x.x"
   }
 }

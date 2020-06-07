@@ -12,7 +12,10 @@
   "keywords": [
     "window",
     "overlay",
-    "electron"
+    "electron",
+    "event",
+    "watch",
+    "foreground"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

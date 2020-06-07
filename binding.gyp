@@ -19,6 +19,15 @@
           ]
       	}],
         ['OS=="linux"', {
+          'defines': [
+            '_GNU_SOURCE'
+          ],
+          'link_settings': {
+            'libraries': [
+              '-lxcb', '-lpthread'
+            ]
+          },
+          'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread'],
       	  'sources': [
             'src/lib/x11.c',
           ]

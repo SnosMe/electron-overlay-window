@@ -73,7 +73,9 @@ class OverlayWindow extends EventEmitter {
         if (e.isFullscreen !== undefined) {
           this._overlayWindow.setFullScreen(e.isFullscreen)
         }
+        if (e.width != 0 && e.height != 0) {
         this._overlayWindow.setBounds(e)
+      }
       }
     })
 
@@ -90,7 +92,7 @@ class OverlayWindow extends EventEmitter {
     })
 
     this.on('moveresize', (e) => {
-      if (this.defaultBehavior) {
+      if (this.defaultBehavior && e.width != 0 && e.height != 0) {
         this._overlayWindow.setBounds(e)
       }
     })
@@ -120,11 +122,19 @@ class OverlayWindow extends EventEmitter {
   }
 
   activateOverlay() {
+    if (process.platform === 'win32') {
     lib.activateOverlay()
+    } else {
+      this._overlayWindow.focus()
+    }
   }
 
   focusTarget() {
+    if (process.platform === 'win32') {
+      this._overlayWindow.blur()
+    } else {
     lib.focusTarget()
+  }
   }
 
   attachTo (overlayWindow: BrowserWindow, targetWindowTitle: string) {

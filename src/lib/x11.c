@@ -220,7 +220,6 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
     if (event->window == target_info.window_id) {
       target_info.is_destroyed = true;
       check_and_handle_window(XCB_WINDOW_NONE, &target_info);
-      xcb_flush(x_conn);
     }
     return;
   }
@@ -228,7 +227,6 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
     xcb_configure_notify_event_t* event = (xcb_configure_notify_event_t*)generic_event;
     if (event->window == target_info.window_id) {
       handle_moveresize_xevent(&target_info);
-      xcb_flush(x_conn);
     }
     return;
   }
@@ -248,13 +246,10 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
         xcb_change_window_attributes(x_conn, active_window, XCB_CW_EVENT_MASK, mask);
       }
       check_and_handle_window(active_window, &target_info);
-      xcb_flush(x_conn);
     } else if (event->window == target_info.window_id && event->atom == ATOM_NET_WM_STATE) {
       handle_fullscreen_xevent(&target_info);
-      xcb_flush(x_conn);
     } else if (event->window == active_window && event->atom == ATOM_NET_WM_NAME) {
       check_and_handle_window(active_window, &target_info);
-      xcb_flush(x_conn);
     }
     return;
   }
@@ -307,4 +302,18 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
   uv_thread_create(&hook_tid, hook_thread, NULL);
+}
+
+void ow_focus_target() {
+  xcb_client_message_event_t* event = calloc(32, 1);
+  event->response_type = XCB_CLIENT_MESSAGE;
+  event->type = ATOM_NET_ACTIVE_WINDOW;
+  event->window = target_info.window_id;
+  event->format = 32;
+  event->data.data32[0] = 1; // source indication = app
+  event->data.data32[2] = overlay_info.window_id; // requestor's currently active window
+
+  xcb_send_event(x_conn, 0, root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (char*)event);
+  xcb_flush(x_conn);
+  free(event);
 }

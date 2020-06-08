@@ -191,6 +191,7 @@ napi_value AddonActivateOverlay(napi_env _env, napi_callback_info _info) {
 }
 
 napi_value AddondFocusTarget(napi_env env, napi_callback_info info) {
+  ow_focus_target();
   return NULL;
 }
 

@@ -23,10 +23,13 @@
     "install": "node-gyp-build",
     "prebuild": "prebuildify --napi",
     "build-ts": "tsc",
+    "demo:electron": "node-gyp build && yarn build-ts && electron dist/demo/electron-demo.js",
     "dev": "node-gyp build && yarn ts-node ./src/index.ts"
   },
   "files": [
-    "dist",
+    "dist/index.d.ts",
+    "dist/index.js",
+    "dist/index.js.map",
     "binding.gyp",
     "src/lib",
     "prebuilds"

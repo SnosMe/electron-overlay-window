@@ -59,6 +59,8 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id);
 
 void ow_activate_overlay();
 
+void ow_focus_target();
+
 void ow_emit_event(struct ow_event* event);
 
 #endif

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { throttle } from 'throttle-debounce'
 import type { BrowserWindow } from 'electron'
 const lib: AddonExports = require('../build/Release/overlay_window.node')
 
@@ -61,21 +62,26 @@ class OverlayWindow extends EventEmitter {
     frame: false,
     show: false,
     transparent: true,
-    resizable: process.platform === 'linux'
+    // let Chromium to accept any size changes from OS
+    resizable: true
   } as const
-
+  
   constructor () {
     super()
 
+    let lastBounds: MoveresizeEvent
+
     this.on('attach', (e) => {
       if (this.defaultBehavior) {
+        // linux: important to show window first before changing fullscreen
         this._overlayWindow.showInactive()
         if (e.isFullscreen !== undefined) {
           this._overlayWindow.setFullScreen(e.isFullscreen)
         }
         if (e.width != 0 && e.height != 0) {
-        this._overlayWindow.setBounds(e)
-      }
+          lastBounds = e
+          this._overlayWindow.setBounds(e)
+        }
       }
     })
 
@@ -91,9 +97,14 @@ class OverlayWindow extends EventEmitter {
       }
     })
 
+    const dispatchMoveresize = throttle(34 /* 30fps */, () => {
+      this._overlayWindow.setBounds(lastBounds)
+    })
+
     this.on('moveresize', (e) => {
       if (this.defaultBehavior && e.width != 0 && e.height != 0) {
-        this._overlayWindow.setBounds(e)
+        lastBounds = e
+        dispatchMoveresize()
       }
     })
   }
@@ -123,18 +134,17 @@ class OverlayWindow extends EventEmitter {
 
   activateOverlay() {
     if (process.platform === 'win32') {
-    lib.activateOverlay()
+      // reason: - window lags a bit using .focus()
+      //         - crashes on close if using .show()
+      //         - also crashes if using .moveTop()
+      lib.activateOverlay()
     } else {
       this._overlayWindow.focus()
     }
   }
 
   focusTarget() {
-    if (process.platform === 'win32') {
-      this._overlayWindow.blur()
-    } else {
     lib.focusTarget()
-  }
   }
 
   attachTo (overlayWindow: BrowserWindow, targetWindowTitle: string) {

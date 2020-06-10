@@ -14,6 +14,11 @@
           'defines': [
             'WIN32_LEAN_AND_MEAN'
           ],
+          'link_settings': {
+            'libraries': [
+              'oleacc.lib'
+            ]
+          },
       	  'sources': [
             'src/lib/windows.c',
           ]

@@ -36,12 +36,14 @@
   ],
   "devDependencies": {
     "@types/node": "12.x.x",
+    "@types/throttle-debounce": "2.x.x",
     "prebuildify": "3.x.x",
     "ts-node": "8.x.x",
     "typescript": "3.x.x"
   },
   "dependencies": {
-    "node-gyp-build": "4.x.x"
+    "node-gyp-build": "4.x.x",
+    "throttle-debounce": "2.x.x"
   },
   "gypfile": true,
   "engines": {

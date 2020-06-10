@@ -179,7 +179,7 @@ napi_value AddonStart(napi_env env, napi_callback_info info) {
   status = napi_create_threadsafe_function(env, info_argv[2], NULL, async_resource_name, 0, 1, NULL, NULL, NULL, tsfn_to_js_proxy, &threadsafe_fn);
   NAPI_THROW_IF_FAILED(env, status, NULL);
 
-  printf("start(window=%x, title=\"%s\")\n", *((int*)overlay_window_id), target_window_title);
+  // printf("start(window=%x, title=\"%s\")\n", *((int*)overlay_window_id), target_window_title);
   ow_start_hook(target_window_title, overlay_window_id);
 
   return NULL;

@@ -304,6 +304,10 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 
+void ow_activate_overlay() {
+  // noop
+}
+
 void ow_focus_target() {
   xcb_client_message_event_t* event = calloc(32, 1);
   event->response_type = XCB_CLIENT_MESSAGE;

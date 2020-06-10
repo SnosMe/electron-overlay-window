@@ -24,7 +24,7 @@ function createWindow () {
 
   window.setIgnoreMouseEvents(true)
 
-  overlayWindow.attachTo(window, 'Calculator')
+  overlayWindow.attachTo(window, 'Untitled - Notepad')
 }
 
 app.on('ready', () => {

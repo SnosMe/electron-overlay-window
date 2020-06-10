@@ -213,7 +213,7 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   AttachThreadInput(threadId, GetWindowThreadProcessId(overlay_info.hwnd, NULL), FALSE);
 
   // fix: window is placed behind target
-  SetWindowPos(overlay_info.hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  SetWindowPos(overlay_info.hwnd, target_info->hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   SetWindowPos(target_info->hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
   // fix: lost transparency on very first appearance

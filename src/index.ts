@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events'
+import { join } from 'path'
 import { throttle } from 'throttle-debounce'
 import type { BrowserWindow } from 'electron'
-const lib: AddonExports = require('../build/Release/overlay_window.node')
+const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
   start(

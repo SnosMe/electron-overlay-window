@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import { join } from 'path'
 import { throttle } from 'throttle-debounce'
+import { screen } from 'electron'
 import type { BrowserWindow } from 'electron'
 const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
@@ -80,8 +81,12 @@ class OverlayWindow extends EventEmitter {
           this._overlayWindow.setFullScreen(e.isFullscreen)
         }
         if (e.width != 0 && e.height != 0) {
-          lastBounds = e
-          this._overlayWindow.setBounds(e)
+          if (process.platform === 'win32') {
+            lastBounds = screen.screenToDipRect(this._overlayWindow, e)
+          } else {
+            lastBounds = e
+          }
+          this._overlayWindow.setBounds(lastBounds)
         }
       }
     })
@@ -99,12 +104,18 @@ class OverlayWindow extends EventEmitter {
     })
 
     const dispatchMoveresize = throttle(34 /* 30fps */, () => {
-      this._overlayWindow.setBounds(lastBounds)
+      if (lastBounds) {
+        this._overlayWindow.setBounds(lastBounds)
+      }
     })
 
     this.on('moveresize', (e) => {
       if (this.defaultBehavior && e.width != 0 && e.height != 0) {
-        lastBounds = e
+        if (process.platform === 'win32') {
+          lastBounds = screen.screenToDipRect(this._overlayWindow, e)
+        } else {
+          lastBounds = e
+        }
         dispatchMoveresize()
       }
     })

@@ -6,6 +6,8 @@
 #include <oleacc.h>
 #include "overlay_window.h"
 
+#define OW_FOREGROUND_TIMER_MS 83 // 12 fps
+
 struct ow_target_window
 {
   char* title;
@@ -250,6 +252,22 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   }
 }
 
+void handle_new_foreground(HWND hwnd) {
+  foreground_window = hwnd;
+
+  if (fg_window_namechange_hook != NULL) {
+    UnhookWinEvent(fg_window_namechange_hook);
+    fg_window_namechange_hook = NULL;
+  }
+  if (foreground_window != NULL && foreground_window != target_info.hwnd) {
+    fg_window_namechange_hook = SetWinEventHook(
+      EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
+      NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
+      WINEVENT_OUTOFCONTEXT);
+  }
+  check_and_handle_window(foreground_window, &target_info);
+}
+
 static VOID CALLBACK hook_proc(
   HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild,
   DWORD idEventThread, DWORD dwmsEventTime
@@ -301,20 +319,21 @@ static VOID CALLBACK hook_proc(
     }
     // check passed, continue normally
 
-    foreground_window = hwnd;
-
-    if (fg_window_namechange_hook != NULL) {
-      UnhookWinEvent(fg_window_namechange_hook);
-      fg_window_namechange_hook = NULL;
-    }
-    if (foreground_window != NULL && foreground_window != target_info.hwnd) {
-      fg_window_namechange_hook = SetWinEventHook(
-        EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
-        NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
-        WINEVENT_OUTOFCONTEXT);
-    }
-    check_and_handle_window(foreground_window, &target_info);
+    handle_new_foreground(hwnd);
     return;
+  }
+}
+
+static VOID CALLBACK foreground_timer_proc(HWND _hwnd, UINT msg, UINT_PTR timerId, DWORD dwmsEventTime)
+{
+  HWND system_foreground = GetForegroundWindow();
+
+  if (
+    foreground_window != system_foreground &&
+    MSAA_check_window_focused_state(system_foreground)
+  ) {
+    // printf("WM_TIMER: Foreground changed\n");
+    handle_new_foreground(system_foreground);
   }
 }
 
@@ -325,6 +344,9 @@ static void hook_thread(void* _arg) {
   SetWinEventHook(
     EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND,
     NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
+  // fix: ForegroundLockTimeout (even when = 0); Also edge cases when apps stealing FG window.
+  //      Using timer because WH_SHELL & WH_CBT hooks require dll injection
+  SetTimer(NULL, 0, OW_FOREGROUND_TIMER_MS, foreground_timer_proc);
 
   foreground_window = GetForegroundWindow();
   if (foreground_window != NULL) {

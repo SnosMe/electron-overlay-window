@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import { join } from 'path'
 import { throttle } from 'throttle-debounce'
 import { screen } from 'electron'
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, Rectangle } from 'electron'
 const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
@@ -57,6 +57,7 @@ declare interface OverlayWindow {
 class OverlayWindow extends EventEmitter {
   private _overlayWindow!: BrowserWindow
   public defaultBehavior = true
+  private lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
 
   readonly WINDOW_OPTS = {
     fullscreenable: true,
@@ -71,8 +72,6 @@ class OverlayWindow extends EventEmitter {
   constructor () {
     super()
 
-    let lastBounds: MoveresizeEvent
-
     this.on('attach', (e) => {
       if (this.defaultBehavior) {
         // linux: important to show window first before changing fullscreen
@@ -80,14 +79,8 @@ class OverlayWindow extends EventEmitter {
         if (e.isFullscreen !== undefined) {
           this._overlayWindow.setFullScreen(e.isFullscreen)
         }
-        if (e.width != 0 && e.height != 0) {
-          if (process.platform === 'win32') {
-            lastBounds = screen.screenToDipRect(this._overlayWindow, e)
-          } else {
-            lastBounds = e
-          }
-          this._overlayWindow.setBounds(lastBounds)
-        }
+        this.lastBounds = e
+        this.updateOverlayBounds()
       }
     })
 
@@ -103,22 +96,28 @@ class OverlayWindow extends EventEmitter {
       }
     })
 
-    const dispatchMoveresize = throttle(34 /* 30fps */, () => {
-      if (lastBounds) {
-        this._overlayWindow.setBounds(lastBounds)
-      }
-    })
+    const dispatchMoveresize = throttle(34 /* 30fps */, this.updateOverlayBounds.bind(this))
 
     this.on('moveresize', (e) => {
-      if (this.defaultBehavior && e.width != 0 && e.height != 0) {
-        if (process.platform === 'win32') {
-          lastBounds = screen.screenToDipRect(this._overlayWindow, e)
-        } else {
-          lastBounds = e
-        }
-        dispatchMoveresize()
-      }
+      this.lastBounds = e
+      dispatchMoveresize()
     })
+  }
+
+  private updateOverlayBounds () {
+    let lastBounds = this.lastBounds
+    if (lastBounds.width != 0 && lastBounds.height != 0) {
+      if (process.platform === 'win32') {
+        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
+      }
+      this._overlayWindow.setBounds(lastBounds)
+      if (process.platform === 'win32') {
+        // if moved to screen with different DPI, 2nd call to setBounds will correctly resize window
+        // dipRect must be recalculated as well
+        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
+        this._overlayWindow.setBounds(lastBounds)
+      }
+    }
   }
 
   private handler (e: unknown) {

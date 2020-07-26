@@ -10,7 +10,7 @@
 
 struct ow_target_window
 {
-  char* title;
+  char *title;
   HWND hwnd;
   HWINEVENTHOOK location_hook;
   HWINEVENTHOOK destroy_hook;
@@ -27,45 +27,50 @@ static HWND foreground_window = NULL;
 static HWINEVENTHOOK fg_window_namechange_hook = NULL;
 
 static struct ow_target_window target_info = {
-  .title = NULL,
-  .hwnd = NULL,
-  .location_hook = NULL,
-  .destroy_hook = NULL,
-  .is_focused = false,
-  .is_destroyed = false
-};
+    .title = NULL,
+    .hwnd = NULL,
+    .location_hook = NULL,
+    .destroy_hook = NULL,
+    .is_focused = false,
+    .is_destroyed = false};
 
 static struct ow_overlay_window overlay_info = {
-  .hwnd = NULL
-};
+    .hwnd = NULL};
 
 static VOID CALLBACK hook_proc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
 
-static bool get_title(HWND hwnd, char** title) {
+static bool get_title(HWND hwnd, char **title)
+{
   SetLastError(0);
   int titleLength = GetWindowTextLengthW(hwnd);
-  if (titleLength == 0) {
-    if (GetLastError() != 0) {
+  if (titleLength == 0)
+  {
+    if (GetLastError() != 0)
+    {
       return false;
     }
-    else {
+    else
+    {
       *title = NULL;
       return true;
     }
   }
 
   LPWSTR titleUtf16 = malloc(sizeof(WCHAR) * ((size_t)titleLength + 1));
-  if (GetWindowTextW(hwnd, titleUtf16, titleLength + 1) == FALSE) {
+  if (GetWindowTextW(hwnd, titleUtf16, titleLength + 1) == FALSE)
+  {
     free(titleUtf16);
     return false;
   }
   int buffLenUtf8 = WideCharToMultiByte(CP_UTF8, 0, titleUtf16, -1, NULL, 0, NULL, NULL);
-  if (buffLenUtf8 == FALSE) {
+  if (buffLenUtf8 == FALSE)
+  {
     free(titleUtf16);
     return false;
   }
   *title = malloc(buffLenUtf8);
-  if (WideCharToMultiByte(CP_UTF8, 0, titleUtf16, -1, *title, buffLenUtf8, NULL, NULL) == FALSE) {
+  if (WideCharToMultiByte(CP_UTF8, 0, titleUtf16, -1, *title, buffLenUtf8, NULL, NULL) == FALSE)
+  {
     free(titleUtf16);
     free(*title);
     return false;
@@ -73,17 +78,19 @@ static bool get_title(HWND hwnd, char** title) {
   return true;
 }
 
-static bool get_content_bounds(HWND hwnd, struct ow_window_bounds* bounds) {
+static bool get_content_bounds(HWND hwnd, struct ow_window_bounds *bounds)
+{
   RECT rect;
-  if (GetClientRect(hwnd, &rect) == FALSE) {
+  if (GetClientRect(hwnd, &rect) == FALSE)
+  {
     return false;
   }
 
   POINT ptClientUL = {
-    .x = rect.left,
-    .y = rect.top
-  };
-  if (ClientToScreen(hwnd, &ptClientUL) == FALSE) {
+      .x = rect.left,
+      .y = rect.top};
+  if (ClientToScreen(hwnd, &ptClientUL) == FALSE)
+  {
     return false;
   }
 
@@ -94,31 +101,37 @@ static bool get_content_bounds(HWND hwnd, struct ow_window_bounds* bounds) {
   return true;
 }
 
-static bool has_all_process_access(DWORD pid, int* has_access) {
+static bool has_all_process_access(DWORD pid, int *has_access)
+{
   HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
 
   *has_access = -1;
-  if (hProc == NULL) {
-    if (GetLastError() == ERROR_ACCESS_DENIED) {
+  if (hProc == NULL)
+  {
+    if (GetLastError() == ERROR_ACCESS_DENIED)
+    {
       *has_access = 0;
       return true;
     }
     return false;
   }
-  else {
+  else
+  {
     CloseHandle(hProc);
     *has_access = 1;
     return true;
   }
 }
 
-static bool MSAA_check_window_focused_state(HWND hwnd) {
+static bool MSAA_check_window_focused_state(HWND hwnd)
+{
   HRESULT hr;
-  IAccessible* pAcc = NULL;
+  IAccessible *pAcc = NULL;
   VARIANT varChildSelf;
   VariantInit(&varChildSelf);
   hr = AccessibleObjectFromEvent(hwnd, OBJID_WINDOW, CHILDID_SELF, &pAcc, &varChildSelf);
-  if (hr != S_OK || pAcc == NULL) {
+  if (hr != S_OK || pAcc == NULL)
+  {
     VariantClear(&varChildSelf);
     return false;
   }
@@ -127,7 +140,8 @@ static bool MSAA_check_window_focused_state(HWND hwnd) {
   hr = pAcc->lpVtbl->get_accState(pAcc, varChildSelf, &varState);
 
   bool is_focused = false;
-  if (hr == S_OK && varState.vt == VT_I4) {
+  if (hr == S_OK && varState.vt == VT_I4)
+  {
     is_focused = (varState.lVal & STATE_SYSTEM_FOCUSED);
   }
   VariantClear(&varState);
@@ -136,56 +150,66 @@ static bool MSAA_check_window_focused_state(HWND hwnd) {
   return is_focused;
 }
 
-static void handle_movesize_event(struct ow_target_window* target_info) {
+static void handle_movesize_event(struct ow_target_window *target_info)
+{
   struct ow_window_bounds bounds;
-  if (get_content_bounds(target_info->hwnd, &bounds)) {
+  if (get_content_bounds(target_info->hwnd, &bounds))
+  {
     struct ow_event e = {
-      .type = OW_MOVERESIZE,
-      .data.moveresize = {
-        .bounds = bounds
-      }
-    };
+        .type = OW_MOVERESIZE,
+        .data.moveresize = {
+            .bounds = bounds}};
     ow_emit_event(&e);
   }
 }
 
-static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_info) {
-  if (target_info->hwnd != NULL) {
-    if (target_info->hwnd != hwnd) {
-      if (target_info->is_focused) {
+static void check_and_handle_window(HWND hwnd, struct ow_target_window *target_info)
+{
+  if (target_info->hwnd != NULL)
+  {
+    if (target_info->hwnd != hwnd)
+    {
+      if (target_info->is_focused)
+      {
         target_info->is_focused = false;
-        struct ow_event e = { .type = OW_BLUR };
+        struct ow_event e = {.type = OW_BLUR};
         ow_emit_event(&e);
       }
 
-      if (target_info->is_destroyed) {
+      if (target_info->is_destroyed)
+      {
         target_info->hwnd = NULL;
         target_info->is_destroyed = false;
-        struct ow_event e = { .type = OW_DETACH };
+        struct ow_event e = {.type = OW_DETACH};
         ow_emit_event(&e);
       }
     }
-    else if (target_info->hwnd == hwnd) {
-      if (!target_info->is_focused) {
+    else if (target_info->hwnd == hwnd)
+    {
+      if (!target_info->is_focused)
+      {
         target_info->is_focused = true;
-        struct ow_event e = { .type = OW_FOCUS };
+        struct ow_event e = {.type = OW_FOCUS};
         ow_emit_event(&e);
       }
       return;
     }
   }
 
-  char* title = NULL;
-  if (!get_title(hwnd, &title) || title == NULL) {
+  char *title = NULL;
+  if (!get_title(hwnd, &title) || title == NULL)
+  {
     return;
   }
   bool is_equal = (strcmp(title, target_info->title) == 0);
   free(title);
-  if (!is_equal) {
+  if (!is_equal)
+  {
     return;
   }
 
-  if (target_info->hwnd != NULL) {
+  if (target_info->hwnd != NULL)
+  {
     UnhookWinEvent(target_info->location_hook);
     UnhookWinEvent(target_info->destroy_hook);
   }
@@ -194,18 +218,19 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
 
   DWORD pid;
   DWORD threadId = GetWindowThreadProcessId(target_info->hwnd, &pid);
-  if (threadId == 0) {
+  if (threadId == 0)
+  {
     return;
   }
 
   target_info->location_hook = SetWinEventHook(
-    EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
-    NULL, hook_proc, 0, threadId,
-    WINEVENT_OUTOFCONTEXT);
+      EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
+      NULL, hook_proc, 0, threadId,
+      WINEVENT_OUTOFCONTEXT);
   target_info->destroy_hook = SetWinEventHook(
-    EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
-    NULL, hook_proc, 0, threadId,
-    WINEVENT_OUTOFCONTEXT);
+      EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
+      NULL, hook_proc, 0, threadId,
+      WINEVENT_OUTOFCONTEXT);
 
   // https://github.com/electron/electron/blob/8de06f0c571bc24e4230063e3ef0428390df773e/shell/browser/native_window_views.cc#L1065
   SetWindowLongPtrW(overlay_info.hwnd, GWLP_HWNDPARENT, (LONG_PTR)target_info->hwnd);
@@ -231,14 +256,13 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   }
 
   struct ow_event e = {
-    .type = OW_ATTACH,
-    .data.attach = {
-      .has_access = -1,
-      .is_fullscreen = -1
-    }
-  };
+      .type = OW_ATTACH,
+      .data.attach = {
+          .has_access = -1,
+          .is_fullscreen = -1}};
   has_all_process_access(pid, &e.data.attach.has_access);
-  if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds)) {
+  if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds))
+  {
     // emit OW_ATTACH
     ow_emit_event(&e);
 
@@ -246,32 +270,36 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     e.type = OW_FOCUS;
     ow_emit_event(&e);
   }
-  else {
+  else
+  {
     // something went wrong, did the target window die right after becoming active?
     target_info->hwnd = NULL;
   }
 }
 
-void handle_new_foreground(HWND hwnd) {
+void handle_new_foreground(HWND hwnd)
+{
   foreground_window = hwnd;
 
-  if (fg_window_namechange_hook != NULL) {
+  if (fg_window_namechange_hook != NULL)
+  {
     UnhookWinEvent(fg_window_namechange_hook);
     fg_window_namechange_hook = NULL;
   }
-  if (foreground_window != NULL && foreground_window != target_info.hwnd) {
+  if (foreground_window != NULL && foreground_window != target_info.hwnd)
+  {
     fg_window_namechange_hook = SetWinEventHook(
-      EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
-      NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
-      WINEVENT_OUTOFCONTEXT);
+        EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
+        NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
+        WINEVENT_OUTOFCONTEXT);
   }
   check_and_handle_window(foreground_window, &target_info);
 }
 
 static VOID CALLBACK hook_proc(
-  HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild,
-  DWORD idEventThread, DWORD dwmsEventTime
-) {
+    HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild,
+    DWORD idEventThread, DWORD dwmsEventTime)
+{
   /* char* e_str =
     event == EVENT_SYSTEM_FOREGROUND ? "SYS_FOREGROUND"
     : event == EVENT_SYSTEM_MINIMIZEEND ? "SYS_MINIMIZEEND"
@@ -281,37 +309,50 @@ static VOID CALLBACK hook_proc(
     : "(unknown)";
   printf("[%d] %s hwnd=%p idObject=%d idChild=%d\n", dwmsEventTime, e_str, hwnd, idObject, idChild); */
 
-  if (event == EVENT_OBJECT_DESTROY) {
-    if (hwnd == target_info.hwnd && idObject == OBJID_WINDOW && idChild == CHILDID_SELF) {
+  if (event == EVENT_OBJECT_DESTROY)
+  {
+    if (hwnd == target_info.hwnd && idObject == OBJID_WINDOW && idChild == CHILDID_SELF)
+    {
       target_info.is_destroyed = true;
       check_and_handle_window(NULL, &target_info);
     }
     return;
   }
-  if (event == EVENT_OBJECT_LOCATIONCHANGE) {
-    if (hwnd == target_info.hwnd && idObject == OBJID_WINDOW && idChild == CHILDID_SELF) {
+  if (event == EVENT_OBJECT_LOCATIONCHANGE)
+  {
+    if (hwnd == target_info.hwnd && idObject == OBJID_WINDOW && idChild == CHILDID_SELF)
+    {
       handle_movesize_event(&target_info);
     }
     return;
   }
-  if (event == EVENT_OBJECT_NAMECHANGE) {
-    if (hwnd == foreground_window && idObject == OBJID_WINDOW && idChild == CHILDID_SELF) {
+  if (event == EVENT_OBJECT_NAMECHANGE)
+  {
+    if (hwnd == foreground_window && idObject == OBJID_WINDOW && idChild == CHILDID_SELF)
+    {
       check_and_handle_window(foreground_window, &target_info);
     }
     return;
   }
-  if (event == EVENT_SYSTEM_FOREGROUND || event == EVENT_SYSTEM_MINIMIZEEND) {
+  if (event == EVENT_SYSTEM_FOREGROUND || event == EVENT_SYSTEM_MINIMIZEEND)
+  {
     // checks if window is really gained focus
     // REASON: if multiple foreground windows switching too fast in short period,
     //         Windows sends EVENT_SYSTEM_FOREGROUND for them but MAY NOT actually
     //         focus window, so the focus is left on previous foreground window,
     //         but from the point of hook we think that focus is changed.
-    if (GetForegroundWindow() == hwnd) {
+    if (GetForegroundWindow() == hwnd)
+    {
       // printf("[1] EVENT_SYSTEM_FOREGROUND: OK, hwnd == GetForegroundWindow\n");
-    } else {
-      if (MSAA_check_window_focused_state(hwnd)) {
+    }
+    else
+    {
+      if (MSAA_check_window_focused_state(hwnd))
+      {
         // printf("[2] EVENT_SYSTEM_FOREGROUND: OK, GetForegroundWindow corrected by MSAA\n");
-      } else {
+      }
+      else
+      {
         // printf("[2] EVENT_SYSTEM_FOREGROUND: FALSE POSITIVE\n");
 
         return;
@@ -329,51 +370,58 @@ static VOID CALLBACK foreground_timer_proc(HWND _hwnd, UINT msg, UINT_PTR timerI
   HWND system_foreground = GetForegroundWindow();
 
   if (
-    foreground_window != system_foreground &&
-    MSAA_check_window_focused_state(system_foreground)
-  ) {
+      foreground_window != system_foreground &&
+      MSAA_check_window_focused_state(system_foreground))
+  {
     // printf("WM_TIMER: Foreground changed\n");
     handle_new_foreground(system_foreground);
   }
 }
 
-static void hook_thread(void* _arg) {
+static void hook_thread(void *_arg)
+{
   SetWinEventHook(
-    EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
-    NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
+      EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+      NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
   SetWinEventHook(
-    EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND,
-    NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
+      EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND,
+      NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
   // fix: ForegroundLockTimeout (even when = 0); Also edge cases when apps stealing FG window.
   //      Using timer because WH_SHELL & WH_CBT hooks require dll injection
   SetTimer(NULL, 0, OW_FOREGROUND_TIMER_MS, foreground_timer_proc);
 
   foreground_window = GetForegroundWindow();
-  if (foreground_window != NULL) {
+  if (foreground_window != NULL)
+  {
     fg_window_namechange_hook = SetWinEventHook(
-      EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
-      NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
-      WINEVENT_OUTOFCONTEXT);
+        EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE,
+        NULL, hook_proc, 0, GetWindowThreadProcessId(foreground_window, NULL),
+        WINEVENT_OUTOFCONTEXT);
     check_and_handle_window(foreground_window, &target_info);
   }
 
   MSG message;
-  while (GetMessageW(&message, (HWND)NULL, 0, 0) != FALSE) {
+  while (GetMessageW(&message, (HWND)NULL, 0, 0) != FALSE)
+  {
     TranslateMessage(&message);
     DispatchMessageW(&message);
   }
 }
 
-void ow_start_hook(char* target_window_title, void* overlay_window_id) {
+void ow_start_hook(char *target_window_title, void *overlay_window_id)
+{
   target_info.title = target_window_title;
-  overlay_info.hwnd = *((HWND*)overlay_window_id);
+  overlay_info.hwnd = *((HWND *)overlay_window_id);
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 
-void ow_activate_overlay() {
+void ow_activate_overlay()
+{
   SetForegroundWindow(overlay_info.hwnd);
 }
 
-void ow_focus_target() {
+void ow_focus_target()
+{
+  BringWindowToTop(target_info.hwnd);
   SetForegroundWindow(target_info.hwnd);
 }

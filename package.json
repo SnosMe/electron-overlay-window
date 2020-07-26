@@ -20,7 +20,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "install": "node-gyp-build",
+    "install": "node-gyp build",
     "prebuild": "prebuildify --napi",
     "build-ts": "tsc",
     "demo:electron": "node-gyp build && yarn build-ts && electron dist/demo/electron-demo.js"

@@ -94,24 +94,6 @@ static bool get_content_bounds(HWND hwnd, struct ow_window_bounds* bounds) {
   return true;
 }
 
-static bool has_all_process_access(DWORD pid, int* has_access) {
-  HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
-
-  *has_access = -1;
-  if (hProc == NULL) {
-    if (GetLastError() == ERROR_ACCESS_DENIED) {
-      *has_access = 0;
-      return true;
-    }
-    return false;
-  }
-  else {
-    CloseHandle(hProc);
-    *has_access = 1;
-    return true;
-  }
-}
-
 static bool MSAA_check_window_focused_state(HWND hwnd) {
   HRESULT hr;
   IAccessible* pAcc = NULL;
@@ -208,8 +190,10 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     WINEVENT_OUTOFCONTEXT);
 
   // https://github.com/electron/electron/blob/8de06f0c571bc24e4230063e3ef0428390df773e/shell/browser/native_window_views.cc#L1065
+  SetLastError(0);
   SetWindowLongPtrW(overlay_info.hwnd, GWLP_HWNDPARENT, (LONG_PTR)target_info->hwnd);
   // bool failed_to_set_parent = (GetLastError() == ERROR_INVALID_PARAMETER); // elevated target window
+  bool failed_to_set_parent = (GetLastError() != 0);
 
   // undo implicit message queue attachment
   AttachThreadInput(threadId, GetWindowThreadProcessId(overlay_info.hwnd, NULL), FALSE);
@@ -237,7 +221,7 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
       .is_fullscreen = -1
     }
   };
-  has_all_process_access(pid, &e.data.attach.has_access);
+  e.data.attach.has_access = !failed_to_set_parent;
   if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds)) {
     // emit OW_ATTACH
     ow_emit_event(&e);

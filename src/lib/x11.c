@@ -149,6 +149,8 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
 
       if (target_info->is_destroyed) {
         target_info->window_id = XCB_WINDOW_NONE;
+        xcb_change_property(x_conn, XCB_PROP_MODE_REPLACE, overlay_info.window_id, XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 32, 1, (void*)&target_info->window_id);
+
         target_info->is_destroyed = false;
         struct ow_event e = { .type = OW_DETACH };
         ow_emit_event(&e);
@@ -294,6 +296,7 @@ static void hook_thread(void* _arg) {
   while ((event = xcb_wait_for_event(x_conn))) {
     event->response_type = event->response_type & ~0x80;
     hook_proc(event);
+    xcb_flush(x_conn);
     free(event);
   }
 }

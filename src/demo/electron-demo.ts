@@ -1,6 +1,8 @@
 import { app, BrowserWindow } from 'electron'
 import { overlayWindow } from '../'
 
+app.disableHardwareAcceleration()
+
 let window: BrowserWindow
 
 function createWindow () {

@@ -186,6 +186,10 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   if (threadId == 0) {
     return;
   }
+  // fix: PostMessage results in ERROR_ACCESS_DENIED on not responding ghost window
+  if (IsHungAppWindow(target_info->hwnd)) {
+    return;
+  }
 
   target_info->location_hook = SetWinEventHook(
     EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,

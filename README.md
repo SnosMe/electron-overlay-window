@@ -1,12 +1,16 @@
-## electron-overlay-window
+# electron-overlay-window
 
-Library for creating overlay windows, intended to complement the Electron.
+[![](https://img.shields.io/npm/v/electron-overlay-window/latest?color=CC3534&label=electron-overlay-window&logo=npm&labelColor=212121)](https://www.npmjs.com/package/electron-overlay-window)
+
+Library for creating overlay windows, intended to complement Electron.
 
 Responsible for:
   - Finding target window by title
   - Making overlay window a child of target
   - Keeping position and size of overlay window with target in sync
   - Emits lifecycle events
+
+![yarn demo:electron](https://i.imgur.com/Ej190zc.gif)
 
 Important notes:
   - You can initialize library only once (overlay window must never die, and title by which target window is searched cannot be changed)

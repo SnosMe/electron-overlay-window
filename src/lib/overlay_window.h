@@ -1,6 +1,10 @@
 #ifndef ADDON_SRC_OVERLAY_WINDOW_H_
 #define ADDON_SRC_OVERLAY_WINDOW_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <uv.h>
 
@@ -14,7 +18,7 @@ enum ow_event_type {
   // target window is destroyed
   OW_DETACH,
   // target window fullscreen changed
-  // only emitted on X11 backend
+  // only emitted on X11 and Mac backend
   OW_FULLSCREEN,
   // target window changed position or resized
   OW_MOVERESIZE,
@@ -55,6 +59,9 @@ struct ow_event {
 
 static uv_thread_t hook_tid;
 
+// Passed the title and a pointer to the platform-specific window ID.
+// Window ID format depends on platform, see
+// https://www.electronjs.org/docs/api/browser-window#wingetnativewindowhandle
 void ow_start_hook(char* target_window_title, void* overlay_window_id);
 
 void ow_activate_overlay();
@@ -62,5 +69,9 @@ void ow_activate_overlay();
 void ow_focus_target();
 
 void ow_emit_event(struct ow_event* event);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -28,12 +28,14 @@ struct ow_window_bounds {
 };
 
 struct ow_event_attach {
-  // defined only on Windows
-  int has_access;
   // defined only on Linux, only if changed
   int is_fullscreen;
   //
   struct ow_window_bounds bounds;
+};
+
+struct ow_event_blur {
+  bool to_overlay;
 };
 
 struct ow_event_fullscreen {
@@ -50,6 +52,7 @@ struct ow_event {
     struct ow_event_attach attach;
     struct ow_event_fullscreen fullscreen;
     struct ow_event_moveresize moveresize;
+    struct ow_event_blur blur;
   } data;
 };
 

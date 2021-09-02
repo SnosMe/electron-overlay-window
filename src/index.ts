@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import { join } from 'path'
 import { throttle } from 'throttle-debounce'
 import { screen } from 'electron'
-import type { BrowserWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Rectangle, BrowserWindowConstructorOptions } from 'electron'
 const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
@@ -26,7 +26,6 @@ enum EventType {
 }
 
 export interface AttachEvent {
-  hasAccess: boolean | undefined
   isFullscreen: boolean | undefined
   x: number
   y: number
@@ -36,6 +35,10 @@ export interface AttachEvent {
 
 export interface FullscreenEvent {
   isFullscreen: boolean
+}
+
+export interface BlurEvent {
+  toOverlay: boolean
 }
 
 export interface MoveresizeEvent {
@@ -48,7 +51,7 @@ export interface MoveresizeEvent {
 declare interface OverlayWindow {
   on(event: 'attach', listener: (e: AttachEvent) => void): this
   on(event: 'focus', listener: () => void): this
-  on(event: 'blur', listener: () => void): this
+  on(event: 'blur', listener: (e: BlurEvent) => void): this
   on(event: 'detach', listener: () => void): this
   on(event: 'fullscreen', listener: (e: FullscreenEvent) => void): this
   on(event: 'moveresize', listener: (e: MoveresizeEvent) => void): this
@@ -58,13 +61,15 @@ class OverlayWindow extends EventEmitter {
   private _overlayWindow!: BrowserWindow
   public defaultBehavior = true
   private lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
+  private isFocused = false
 
-  readonly WINDOW_OPTS = {
+  readonly WINDOW_OPTS: BrowserWindowConstructorOptions = {
     fullscreenable: true,
     skipTaskbar: true,
     frame: false,
     show: false,
     transparent: true,
+    // alwaysOnTop: true,
     // let Chromium to accept any size changes from OS
     resizable: true
   } as const
@@ -101,6 +106,30 @@ class OverlayWindow extends EventEmitter {
     this.on('moveresize', (e) => {
       this.lastBounds = e
       dispatchMoveresize()
+    })
+
+    this.on('blur', (e) => {
+      if (this.defaultBehavior) {
+        console.log('blur', e)
+
+        this.isFocused = false
+
+        if (e.toOverlay) {
+          // this._overlayWindow.setAlwaysOnTop(false)
+        } else {
+          this._overlayWindow.setAlwaysOnTop(false)
+          this._overlayWindow.hide()
+        }
+      }
+    })
+
+    this.on('focus', () => {
+      if (this.defaultBehavior) {
+        console.log('focus')
+        this.isFocused = true
+        this._overlayWindow.setAlwaysOnTop(true)
+        this._overlayWindow.showInactive()
+      }
     })
   }
 
@@ -144,14 +173,7 @@ class OverlayWindow extends EventEmitter {
   }
 
   activateOverlay() {
-    if (process.platform === 'win32') {
-      // reason: - window lags a bit using .focus()
-      //         - crashes on close if using .show()
-      //         - also crashes if using .moveTop()
-      lib.activateOverlay()
-    } else {
-      this._overlayWindow.focus()
-    }
+    this._overlayWindow.focus()
   }
 
   focusTarget() {
@@ -163,6 +185,16 @@ class OverlayWindow extends EventEmitter {
       throw new Error('Library can be initialized only once.')
     }
     this._overlayWindow = overlayWindow
+
+    overlayWindow.on('blur', () => {
+      if (!this.isFocused) {
+        this._overlayWindow.setAlwaysOnTop(false)
+        this._overlayWindow.hide()
+      } else {
+        console.log('Focused? how?')
+      }
+    })
+
     lib.start(overlayWindow.getNativeWindowHandle(), targetWindowTitle, this.handler.bind(this))
   }
 }

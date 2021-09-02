@@ -25,7 +25,6 @@ struct ow_overlay_window
 
 static HWND foreground_window = NULL;
 static HWINEVENTHOOK fg_window_namechange_hook = NULL;
-static UINT WM_OVERLAY_UIPI_TEST = WM_NULL;
 
 static struct ow_target_window target_info = {
   .title = NULL,
@@ -41,12 +40,6 @@ static struct ow_overlay_window overlay_info = {
 };
 
 static VOID CALLBACK hook_proc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
-
-static bool has_uipi_access(HWND hwnd) {
-  SetLastError(ERROR_SUCCESS);
-  PostMessage(hwnd, WM_OVERLAY_UIPI_TEST, 0, 0);
-  return GetLastError() != ERROR_ACCESS_DENIED;
-}
 
 static bool get_title(HWND hwnd, char** title) {
   SetLastError(0);
@@ -143,7 +136,12 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     if (target_info->hwnd != hwnd) {
       if (target_info->is_focused) {
         target_info->is_focused = false;
-        struct ow_event e = { .type = OW_BLUR };
+        struct ow_event e = {
+          .type = OW_BLUR,
+          .data.blur = {
+            .to_overlay = (hwnd == overlay_info.hwnd)
+          }
+        };
         ow_emit_event(&e);
       }
 
@@ -186,7 +184,7 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   if (threadId == 0) {
     return;
   }
-  // fix: PostMessage results in ERROR_ACCESS_DENIED on not responding ghost window
+  // ignore fake ghost windows
   if (IsHungAppWindow(target_info->hwnd)) {
     return;
   }
@@ -200,37 +198,12 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     NULL, hook_proc, 0, threadId,
     WINEVENT_OUTOFCONTEXT);
 
-  // https://github.com/electron/electron/blob/8de06f0c571bc24e4230063e3ef0428390df773e/shell/browser/native_window_views.cc#L1065
-  SetLastError(0);
-  SetWindowLongPtrW(overlay_info.hwnd, GWLP_HWNDPARENT, (LONG_PTR)target_info->hwnd);
-
-  // undo implicit message queue attachment
-  AttachThreadInput(threadId, GetWindowThreadProcessId(overlay_info.hwnd, NULL), FALSE);
-
-  // fix: window is placed behind target
-  SetWindowPos(overlay_info.hwnd, target_info->hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-  SetWindowPos(target_info->hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-
-  // fix: lost transparency on very first appearance
-  {
-    LONG style = GetWindowLong(overlay_info.hwnd, GWL_STYLE);
-    SetWindowLong(overlay_info.hwnd, GWL_STYLE, style | WS_VISIBLE);
-
-    LONG ex_style = GetWindowLong(overlay_info.hwnd, GWL_EXSTYLE);
-    SetWindowLong(overlay_info.hwnd, GWL_EXSTYLE, ex_style & ~WS_EX_LAYERED);
-    SetWindowLong(overlay_info.hwnd, GWL_EXSTYLE, ex_style);
-
-    SetWindowLong(overlay_info.hwnd, GWL_STYLE, style);
-  }
-
   struct ow_event e = {
     .type = OW_ATTACH,
     .data.attach = {
-      .has_access = -1,
       .is_fullscreen = -1
     }
   };
-  e.data.attach.has_access = has_uipi_access(target_info->hwnd);
   if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds)) {
     // emit OW_ATTACH
     ow_emit_event(&e);
@@ -337,8 +310,8 @@ static void hook_thread(void* _arg) {
   SetWinEventHook(
     EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND,
     NULL, hook_proc, 0, 0, WINEVENT_OUTOFCONTEXT);
-  // fix: ForegroundLockTimeout (even when = 0); Also edge cases when apps stealing FG window.
-  //      Using timer because WH_SHELL & WH_CBT hooks require dll injection
+  // FIXES: ForegroundLockTimeout (even when = 0); Also edge cases when apps stealing FG window.
+  // NOTE:  Using timer because WH_SHELL & WH_CBT hooks require dll injection
   SetTimer(NULL, 0, OW_FOREGROUND_TIMER_MS, foreground_timer_proc);
 
   foreground_window = GetForegroundWindow();
@@ -360,7 +333,6 @@ static void hook_thread(void* _arg) {
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   overlay_info.hwnd = *((HWND*)overlay_window_id);
-  WM_OVERLAY_UIPI_TEST = RegisterWindowMessage("ELECTRON_OVERLAY_UIPI_TEST");
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 

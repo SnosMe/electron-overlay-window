@@ -62,6 +62,7 @@ class OverlayWindow extends EventEmitter {
   public defaultBehavior = true
   private lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
   private isFocused = false
+  private willBeFocused: 'overlay' | 'target' | undefined
 
   readonly WINDOW_OPTS: BrowserWindowConstructorOptions = {
     fullscreenable: true,
@@ -78,9 +79,13 @@ class OverlayWindow extends EventEmitter {
     super()
 
     this.on('attach', (e) => {
+      this.isFocused = true
       if (this.defaultBehavior) {
-        // linux: important to show window first before changing fullscreen
         this._overlayWindow.showInactive()
+        if (process.platform === 'linux') {
+          this._overlayWindow.setSkipTaskbar(true)
+        }
+        this._overlayWindow.setAlwaysOnTop(true, 'screen-saver')
         if (e.isFullscreen !== undefined) {
           this._overlayWindow.setFullScreen(e.isFullscreen)
         }
@@ -96,6 +101,8 @@ class OverlayWindow extends EventEmitter {
     })
 
     this.on('detach', () => {
+      this.isFocused = false
+
       if (this.defaultBehavior) {
         this._overlayWindow.hide()
       }
@@ -109,26 +116,31 @@ class OverlayWindow extends EventEmitter {
     })
 
     this.on('blur', (e) => {
+      this.isFocused = false
+
       if (this.defaultBehavior) {
-        console.log('blur', e)
 
-        this.isFocused = false
+        if (this.willBeFocused !== 'overlay' && !this._overlayWindow.isFocused()) {
+          console.log('hide overlay 2')
 
-        if (e.toOverlay) {
-          // this._overlayWindow.setAlwaysOnTop(false)
-        } else {
-          this._overlayWindow.setAlwaysOnTop(false)
           this._overlayWindow.hide()
         }
       }
     })
 
     this.on('focus', () => {
+      this.willBeFocused = undefined
       if (this.defaultBehavior) {
-        console.log('focus')
         this.isFocused = true
-        this._overlayWindow.setAlwaysOnTop(true)
-        this._overlayWindow.showInactive()
+
+        if (!this._overlayWindow.isVisible()) {
+          console.log('show overlay')
+          this._overlayWindow.showInactive()
+          if (process.platform === 'linux') {
+            this._overlayWindow.setSkipTaskbar(true)
+          }
+          this._overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+        }
       }
     })
   }
@@ -173,10 +185,12 @@ class OverlayWindow extends EventEmitter {
   }
 
   activateOverlay() {
+    this.willBeFocused = 'overlay'
     this._overlayWindow.focus()
   }
 
   focusTarget() {
+    this.willBeFocused = 'target'
     lib.focusTarget()
   }
 
@@ -187,12 +201,14 @@ class OverlayWindow extends EventEmitter {
     this._overlayWindow = overlayWindow
 
     overlayWindow.on('blur', () => {
-      if (!this.isFocused) {
-        this._overlayWindow.setAlwaysOnTop(false)
-        this._overlayWindow.hide()
-      } else {
-        console.log('Focused? how?')
+      if (!this.isFocused && this.willBeFocused !== 'target') {
+          console.log('hide overlay 1')
+          this._overlayWindow.hide()
       }
+    })
+
+    overlayWindow.on('focus', () => {
+      this.willBeFocused = undefined
     })
 
     lib.start(overlayWindow.getNativeWindowHandle(), targetWindowTitle, this.handler.bind(this))

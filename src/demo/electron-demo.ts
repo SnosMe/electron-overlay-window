@@ -11,7 +11,8 @@ function createWindow () {
     width: 400,
     height: 300,
     webPreferences: {
-      nodeIntegration: true
+      nodeIntegration: true,
+      contextIsolation: false
     },
     ...overlayWindow.WINDOW_OPTS
   })

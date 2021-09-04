@@ -136,12 +136,7 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     if (target_info->hwnd != hwnd) {
       if (target_info->is_focused) {
         target_info->is_focused = false;
-        struct ow_event e = {
-          .type = OW_BLUR,
-          .data.blur = {
-            .to_overlay = (hwnd == overlay_info.hwnd)
-          }
-        };
+        struct ow_event e = { .type = OW_BLUR };
         ow_emit_event(&e);
       }
 

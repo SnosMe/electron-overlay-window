@@ -85,19 +85,6 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
     NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");
     return event_obj;
   }
-  else if (event->type == OW_BLUR) {
-    napi_value e_to_overlay;
-    status = napi_get_boolean(env, event->data.blur.to_overlay, &e_to_overlay);
-    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_boolean");
-
-    napi_property_descriptor descriptors[] = {
-      { "type",      NULL, NULL, NULL, NULL, e_type,       napi_enumerable, NULL },
-      { "toOverlay", NULL, NULL, NULL, NULL, e_to_overlay, napi_enumerable, NULL },
-    };
-    status = napi_define_properties(env, event_obj, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
-    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");
-    return event_obj;
-  }
   else if (event->type == OW_MOVERESIZE) {
     napi_value e_x;
     status = napi_create_int32(env, event->data.moveresize.bounds.x, &e_x);

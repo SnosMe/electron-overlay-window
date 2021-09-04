@@ -37,10 +37,6 @@ export interface FullscreenEvent {
   isFullscreen: boolean
 }
 
-export interface BlurEvent {
-  toOverlay: boolean
-}
-
 export interface MoveresizeEvent {
   x: number
   y: number
@@ -51,7 +47,7 @@ export interface MoveresizeEvent {
 declare interface OverlayWindow {
   on(event: 'attach', listener: (e: AttachEvent) => void): this
   on(event: 'focus', listener: () => void): this
-  on(event: 'blur', listener: (e: BlurEvent) => void): this
+  on(event: 'blur', listener: () => void): this
   on(event: 'detach', listener: () => void): this
   on(event: 'fullscreen', listener: (e: FullscreenEvent) => void): this
   on(event: 'moveresize', listener: (e: MoveresizeEvent) => void): this
@@ -70,7 +66,6 @@ class OverlayWindow extends EventEmitter {
     frame: false,
     show: false,
     transparent: true,
-    // alwaysOnTop: true,
     // let Chromium to accept any size changes from OS
     resizable: true
   } as const
@@ -115,7 +110,7 @@ class OverlayWindow extends EventEmitter {
       dispatchMoveresize()
     })
 
-    this.on('blur', (e) => {
+    this.on('blur', () => {
       this.isFocused = false
 
       if (this.defaultBehavior) {

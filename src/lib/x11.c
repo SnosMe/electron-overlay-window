@@ -143,12 +143,7 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
     if (target_info->window_id != wid) {
       if (target_info->is_focused) {
         target_info->is_focused = false;
-        struct ow_event e = {
-          .type = OW_BLUR,
-          .data.blur = {
-            .to_overlay = (wid == overlay_info.window_id)
-          }
-        };
+        struct ow_event e = { .type = OW_BLUR };
         ow_emit_event(&e);
       }
 

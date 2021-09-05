@@ -44,7 +44,7 @@ export interface MoveresizeEvent {
   height: number
 }
 
-declare interface OverlayWindow {
+export interface OverlayWindow {
   on(event: 'attach', listener: (e: AttachEvent) => void): this
   on(event: 'focus', listener: () => void): this
   on(event: 'blur', listener: () => void): this
@@ -53,14 +53,14 @@ declare interface OverlayWindow {
   on(event: 'moveresize', listener: (e: MoveresizeEvent) => void): this
 }
 
-class OverlayWindow extends EventEmitter {
-  private _overlayWindow!: BrowserWindow
-  public defaultBehavior = true
+export class OverlayWindow extends EventEmitter {
+  private electronWindow: BrowserWindow
   private lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
   private isFocused = false
   private willBeFocused: 'overlay' | 'target' | undefined
+  private static isInitialized = false
 
-  readonly WINDOW_OPTS: BrowserWindowConstructorOptions = {
+  static readonly WINDOW_OPTS: BrowserWindowConstructorOptions = {
     fullscreenable: true,
     skipTaskbar: true,
     frame: false,
@@ -68,39 +68,50 @@ class OverlayWindow extends EventEmitter {
     transparent: true,
     // let Chromium to accept any size changes from OS
     resizable: true
-  } as const
-  
-  constructor () {
+  }
+
+  constructor (overlayWindow: BrowserWindow, targetWindowTitle: string) {
     super()
 
-    this.on('attach', (e) => {
-      this.isFocused = true
-      if (this.defaultBehavior) {
-        this._overlayWindow.showInactive()
-        if (process.platform === 'linux') {
-          this._overlayWindow.setSkipTaskbar(true)
-        }
-        this._overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-        if (e.isFullscreen !== undefined) {
-          this._overlayWindow.setFullScreen(e.isFullscreen)
-        }
-        this.lastBounds = e
-        this.updateOverlayBounds()
+    if (OverlayWindow.isInitialized) {
+      throw new Error('Library can be initialized only once.')
+    } else {
+      OverlayWindow.isInitialized = true
+    }
+
+    this.electronWindow = overlayWindow
+
+    this.electronWindow.on('blur', () => {
+      if (!this.isFocused && this.willBeFocused !== 'target') {
+        this.electronWindow.hide()
       }
     })
 
-    this.on('fullscreen', (e) => {
-      if (this.defaultBehavior) {
-        this._overlayWindow.setFullScreen(e.isFullscreen)
+    this.electronWindow.on('focus', () => {
+      this.willBeFocused = undefined
+    })
+
+    this.on('attach', (e) => {
+      this.isFocused = true
+      this.electronWindow.showInactive()
+      if (process.platform === 'linux') {
+        this.electronWindow.setSkipTaskbar(true)
       }
+      this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      if (e.isFullscreen !== undefined) {
+        this.electronWindow.setFullScreen(e.isFullscreen)
+      }
+      this.lastBounds = e
+      this.updateOverlayBounds()
+    })
+
+    this.on('fullscreen', (e) => {
+      this.electronWindow.setFullScreen(e.isFullscreen)
     })
 
     this.on('detach', () => {
       this.isFocused = false
-
-      if (this.defaultBehavior) {
-        this._overlayWindow.hide()
-      }
+      this.electronWindow.hide()
     })
 
     const dispatchMoveresize = throttle(34 /* 30fps */, this.updateOverlayBounds.bind(this))
@@ -113,45 +124,39 @@ class OverlayWindow extends EventEmitter {
     this.on('blur', () => {
       this.isFocused = false
 
-      if (this.defaultBehavior) {
-
-        if (this.willBeFocused !== 'overlay' && !this._overlayWindow.isFocused()) {
-          console.log('hide overlay 2')
-
-          this._overlayWindow.hide()
-        }
+      if (this.willBeFocused !== 'overlay' && !this.electronWindow.isFocused()) {
+        this.electronWindow.hide()
       }
     })
 
     this.on('focus', () => {
       this.willBeFocused = undefined
-      if (this.defaultBehavior) {
-        this.isFocused = true
+      this.isFocused = true
 
-        if (!this._overlayWindow.isVisible()) {
-          console.log('show overlay')
-          this._overlayWindow.showInactive()
-          if (process.platform === 'linux') {
-            this._overlayWindow.setSkipTaskbar(true)
-          }
-          this._overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+      if (!this.electronWindow.isVisible()) {
+        this.electronWindow.showInactive()
+        if (process.platform === 'linux') {
+          this.electronWindow.setSkipTaskbar(true)
         }
+        this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
     })
+
+    lib.start(this.electronWindow.getNativeWindowHandle(), targetWindowTitle, this.handler.bind(this))
   }
 
   private updateOverlayBounds () {
     let lastBounds = this.lastBounds
     if (lastBounds.width != 0 && lastBounds.height != 0) {
       if (process.platform === 'win32') {
-        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
+        lastBounds = screen.screenToDipRect(this.electronWindow, this.lastBounds)
       }
-      this._overlayWindow.setBounds(lastBounds)
+      this.electronWindow.setBounds(lastBounds)
       if (process.platform === 'win32') {
         // if moved to screen with different DPI, 2nd call to setBounds will correctly resize window
         // dipRect must be recalculated as well
-        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
-        this._overlayWindow.setBounds(lastBounds)
+        lastBounds = screen.screenToDipRect(this.electronWindow, this.lastBounds)
+        this.electronWindow.setBounds(lastBounds)
       }
     }
   }
@@ -179,35 +184,13 @@ class OverlayWindow extends EventEmitter {
     }
   }
 
-  activateOverlay() {
+  public activateOverlay () {
     this.willBeFocused = 'overlay'
-    this._overlayWindow.focus()
+    this.electronWindow.focus()
   }
 
-  focusTarget() {
+  public focusTarget () {
     this.willBeFocused = 'target'
     lib.focusTarget()
   }
-
-  attachTo (overlayWindow: BrowserWindow, targetWindowTitle: string) {
-    if (this._overlayWindow) {
-      throw new Error('Library can be initialized only once.')
-    }
-    this._overlayWindow = overlayWindow
-
-    overlayWindow.on('blur', () => {
-      if (!this.isFocused && this.willBeFocused !== 'target') {
-          console.log('hide overlay 1')
-          this._overlayWindow.hide()
-      }
-    })
-
-    overlayWindow.on('focus', () => {
-      this.willBeFocused = undefined
-    })
-
-    lib.start(overlayWindow.getNativeWindowHandle(), targetWindowTitle, this.handler.bind(this))
-  }
 }
-
-export const overlayWindow = new OverlayWindow()

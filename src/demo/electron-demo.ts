@@ -1,10 +1,11 @@
 import { app, BrowserWindow, globalShortcut } from 'electron'
-import { overlayWindow } from '../'
+import { OverlayWindow } from '../'
 
 // https://github.com/electron/electron/issues/25153
 app.disableHardwareAcceleration()
 
 let window: BrowserWindow
+let overlayedTarget: OverlayWindow
 
 function createWindow () {
   window = new BrowserWindow({
@@ -14,7 +15,7 @@ function createWindow () {
       nodeIntegration: true,
       contextIsolation: false
     },
-    ...overlayWindow.WINDOW_OPTS
+    ...OverlayWindow.WINDOW_OPTS
   })
 
   window.loadURL(`data:text/html;charset=utf-8,
@@ -49,14 +50,14 @@ function createWindow () {
     </body>
   `)
 
-  // NOTE: if you close Dev Tools overlay window will lose transparency 
+  // NOTE: if you close Dev Tools overlay window will lose transparency
   window.webContents.openDevTools({ mode: 'detach', activate: false })
 
   window.setIgnoreMouseEvents(true)
 
   makeDemoInteractive()
 
-  overlayWindow.attachTo(window, 'Untitled - Notepad')
+  overlayedTarget = new OverlayWindow(window, 'Untitled - Notepad')
 }
 
 function makeDemoInteractive () {
@@ -66,12 +67,12 @@ function makeDemoInteractive () {
     if (isInteractable) {
       window.setIgnoreMouseEvents(true)
       isInteractable = false
-      overlayWindow.focusTarget()
+      overlayedTarget.focusTarget()
       window.webContents.send('focus-change', false)
     } else {
       window.setIgnoreMouseEvents(false)
       isInteractable = true
-      overlayWindow.activateOverlay()
+      overlayedTarget.activateOverlay()
       window.webContents.send('focus-change', true)
     }
   }

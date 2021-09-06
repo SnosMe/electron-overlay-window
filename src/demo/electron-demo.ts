@@ -53,8 +53,6 @@ function createWindow () {
   // NOTE: if you close Dev Tools overlay window will lose transparency
   window.webContents.openDevTools({ mode: 'detach', activate: false })
 
-  window.setIgnoreMouseEvents(true)
-
   makeDemoInteractive()
 
   overlayedTarget = new OverlayWindow(window, 'Untitled - Notepad')
@@ -65,17 +63,20 @@ function makeDemoInteractive () {
 
   function toggleOverlayState () {
     if (isInteractable) {
-      window.setIgnoreMouseEvents(true)
       isInteractable = false
       overlayedTarget.focusTarget()
       window.webContents.send('focus-change', false)
     } else {
-      window.setIgnoreMouseEvents(false)
       isInteractable = true
       overlayedTarget.activateOverlay()
       window.webContents.send('focus-change', true)
     }
   }
+
+  window.on('blur', () => {
+    isInteractable = false
+    window.webContents.send('focus-change', false)
+  })
 
   globalShortcut.register('CmdOrCtrl + Q', toggleOverlayState)
 

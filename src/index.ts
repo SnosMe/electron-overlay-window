@@ -93,6 +93,7 @@ export class OverlayWindow extends EventEmitter {
 
     this.on('attach', (e) => {
       this.isFocused = true
+      this.electronWindow.setIgnoreMouseEvents(true)
       this.electronWindow.showInactive()
       if (process.platform === 'linux') {
         this.electronWindow.setSkipTaskbar(true)
@@ -133,6 +134,7 @@ export class OverlayWindow extends EventEmitter {
       this.willBeFocused = undefined
       this.isFocused = true
 
+      this.electronWindow.setIgnoreMouseEvents(true)
       if (!this.electronWindow.isVisible()) {
         this.electronWindow.showInactive()
         if (process.platform === 'linux') {
@@ -186,6 +188,7 @@ export class OverlayWindow extends EventEmitter {
 
   public activateOverlay () {
     this.willBeFocused = 'overlay'
+    this.electronWindow.setIgnoreMouseEvents(false)
     this.electronWindow.focus()
   }
 

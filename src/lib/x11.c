@@ -189,6 +189,7 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
   struct ow_event e = {
     .type = OW_ATTACH,
     .data.attach = {
+      .has_access = -1,
       .is_fullscreen = -1
     }
   };

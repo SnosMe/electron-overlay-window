@@ -34,6 +34,16 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
   NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
 
   if (event->type == OW_ATTACH) {
+    napi_value e_has_access;
+    if (event->data.attach.has_access == -1) {
+      status = napi_get_undefined(env, &e_has_access);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_undefined");
+    }
+    else {
+      status = napi_get_boolean(env, event->data.attach.has_access == 1, &e_has_access);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_boolean");
+    }
+
     napi_value e_is_fullscreen;
     if (event->data.attach.is_fullscreen == -1) {
       status = napi_get_undefined(env, &e_is_fullscreen);
@@ -62,6 +72,7 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
 
     napi_property_descriptor descriptors[] = {
       { "type",         NULL, NULL, NULL, NULL, e_type,          napi_enumerable, NULL },
+      { "hasAccess",    NULL, NULL, NULL, NULL, e_has_access,    napi_enumerable, NULL },
       { "isFullscreen", NULL, NULL, NULL, NULL, e_is_fullscreen, napi_enumerable, NULL },
       { "x",            NULL, NULL, NULL, NULL, e_x,             napi_enumerable, NULL },
       { "y",            NULL, NULL, NULL, NULL, e_y,             napi_enumerable, NULL },

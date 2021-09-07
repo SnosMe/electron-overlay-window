@@ -25,6 +25,7 @@ struct ow_overlay_window
 
 static HWND foreground_window = NULL;
 static HWINEVENTHOOK fg_window_namechange_hook = NULL;
+static UINT WM_OVERLAY_UIPI_TEST = WM_NULL;
 
 static struct ow_target_window target_info = {
   .title = NULL,
@@ -40,6 +41,12 @@ static struct ow_overlay_window overlay_info = {
 };
 
 static VOID CALLBACK hook_proc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
+
+static bool has_uipi_access(HWND hwnd) {
+  SetLastError(ERROR_SUCCESS);
+  PostMessage(hwnd, WM_OVERLAY_UIPI_TEST, 0, 0);
+  return GetLastError() != ERROR_ACCESS_DENIED;
+}
 
 static bool get_title(HWND hwnd, char** title) {
   SetLastError(0);
@@ -196,9 +203,11 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   struct ow_event e = {
     .type = OW_ATTACH,
     .data.attach = {
+      .has_access = -1,
       .is_fullscreen = -1
     }
   };
+  e.data.attach.has_access = has_uipi_access(target_info->hwnd);
   if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds)) {
     // emit OW_ATTACH
     ow_emit_event(&e);
@@ -328,6 +337,7 @@ static void hook_thread(void* _arg) {
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   overlay_info.hwnd = *((HWND*)overlay_window_id);
+  WM_OVERLAY_UIPI_TEST = RegisterWindowMessage("ELECTRON_OVERLAY_UIPI_TEST");
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 

@@ -28,6 +28,8 @@ struct ow_window_bounds {
 };
 
 struct ow_event_attach {
+  // defined only on Windows
+  int has_access;
   // defined only on Linux, only if changed
   int is_fullscreen;
   //

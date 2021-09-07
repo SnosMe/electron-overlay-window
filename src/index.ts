@@ -26,6 +26,7 @@ enum EventType {
 }
 
 export interface AttachEvent {
+  hasAccess: boolean | undefined
   isFullscreen: boolean | undefined
   x: number
   y: number

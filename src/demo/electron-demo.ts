@@ -55,7 +55,7 @@ function createWindow () {
 
   makeDemoInteractive()
 
-  overlayedTarget = new OverlayWindow(window, 'Untitled - Notepad')
+  OverlayWindow.attachTo(window, 'Untitled - Notepad')
 }
 
 function makeDemoInteractive () {
@@ -64,11 +64,11 @@ function makeDemoInteractive () {
   function toggleOverlayState () {
     if (isInteractable) {
       isInteractable = false
-      overlayedTarget.focusTarget()
+      OverlayWindow.focusTarget()
       window.webContents.send('focus-change', false)
     } else {
       isInteractable = true
-      overlayedTarget.activateOverlay()
+      OverlayWindow.activateOverlay()
       window.webContents.send('focus-change', true)
     }
   }

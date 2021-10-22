@@ -116,3 +116,6 @@ dist
 
 build
 prebuilds
+
+# Mac storage
+.DS_Store

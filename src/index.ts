@@ -165,6 +165,7 @@ export class OverlayWindow extends EventEmitter {
 
   static focusTarget () {
     OverlayWindow.#willBeFocused = 'target'
+    OverlayWindow.#electronWindow.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }
 

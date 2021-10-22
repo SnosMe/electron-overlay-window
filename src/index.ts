@@ -47,7 +47,8 @@ export interface MoveresizeEvent {
 
 export class OverlayWindow extends EventEmitter {
   static #electronWindow: BrowserWindow
-  static #lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
+  /** Exposed so that apps can get the current bounds of the target */
+  static bounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
   static #isFocused = false
   static #willBeFocused: 'overlay' | 'target' | undefined
 
@@ -75,7 +76,7 @@ export class OverlayWindow extends EventEmitter {
       if (e.isFullscreen !== undefined) {
         OverlayWindow.#electronWindow.setFullScreen(e.isFullscreen)
       }
-      OverlayWindow.#lastBounds = e
+      OverlayWindow.bounds = e
       OverlayWindow.#updateOverlayBounds()
     })
 
@@ -91,7 +92,7 @@ export class OverlayWindow extends EventEmitter {
     const dispatchMoveresize = throttle(34 /* 30fps */, OverlayWindow.#updateOverlayBounds)
 
     OverlayWindow.events.on('moveresize', (e: MoveresizeEvent) => {
-      OverlayWindow.#lastBounds = e
+      OverlayWindow.bounds = e
       dispatchMoveresize()
     })
 
@@ -119,16 +120,16 @@ export class OverlayWindow extends EventEmitter {
   }
 
   static #updateOverlayBounds () {
-    let lastBounds = OverlayWindow.#lastBounds
+    let lastBounds = OverlayWindow.bounds
     if (lastBounds.width != 0 && lastBounds.height != 0) {
       if (process.platform === 'win32') {
-        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.#lastBounds)
+        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.bounds)
       }
       OverlayWindow.#electronWindow.setBounds(lastBounds)
       if (process.platform === 'win32') {
         // if moved to screen with different DPI, 2nd call to setBounds will correctly resize window
         // dipRect must be recalculated as well
-        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.#lastBounds)
+        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.bounds)
         OverlayWindow.#electronWindow.setBounds(lastBounds)
       }
     }

@@ -139,6 +139,10 @@ static void handle_movesize_event(struct ow_target_window* target_info) {
 }
 
 static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_info) {
+  if (IsHungAppWindow(hwnd)) {
+    return;
+  }
+
   if (target_info->hwnd != NULL) {
     if (target_info->hwnd != hwnd) {
       if (target_info->is_focused) {
@@ -184,10 +188,6 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   DWORD pid;
   DWORD threadId = GetWindowThreadProcessId(target_info->hwnd, &pid);
   if (threadId == 0) {
-    return;
-  }
-  // fix: PostMessage results in ERROR_ACCESS_DENIED on not responding ghost window
-  if (IsHungAppWindow(target_info->hwnd)) {
     return;
   }
 

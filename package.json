@@ -22,8 +22,7 @@
   "scripts": {
     "install": "node-gyp-build",
     "prebuild": "prebuildify --napi",
-    "build-ts": "tsc",
-    "demo:electron": "node-gyp build && yarn build-ts && electron dist/demo/electron-demo.js"
+    "demo:electron": "node-gyp build && yarn tsc && electron dist/demo/electron-demo.js"
   },
   "files": [
     "dist/index.d.ts",
@@ -34,21 +33,21 @@
     "prebuilds"
   ],
   "devDependencies": {
-    "@types/node": "14.x.x",
-    "@types/throttle-debounce": "2.x.x",
-    "electron": "14.x.x",
-    "prebuildify": "4.x.x",
+    "@types/node": "18.x.x",
+    "@types/throttle-debounce": "5.x.x",
+    "electron": "19.x.x",
+    "prebuildify": "5.x.x",
     "typescript": "4.x.x"
   },
   "dependencies": {
     "node-gyp-build": "4.x.x",
-    "throttle-debounce": "3.x.x"
+    "throttle-debounce": "5.x.x"
   },
   "gypfile": true,
   "engines": {
-    "node": ">= 14"
+    "node": ">= 16"
   },
   "peerDependencies": {
-    "electron": ">= 14"
+    "electron": ">= 18"
   }
 }

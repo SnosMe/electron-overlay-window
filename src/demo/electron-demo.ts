@@ -1,11 +1,10 @@
 import { app, BrowserWindow, globalShortcut } from 'electron'
-import { OverlayWindow } from '../'
+import { OverlayController, OVERLAY_WINDOW_OPTS } from '../'
 
 // https://github.com/electron/electron/issues/25153
 app.disableHardwareAcceleration()
 
 let window: BrowserWindow
-let overlayedTarget: OverlayWindow
 
 function createWindow () {
   window = new BrowserWindow({
@@ -15,7 +14,7 @@ function createWindow () {
       nodeIntegration: true,
       contextIsolation: false
     },
-    ...OverlayWindow.WINDOW_OPTS
+    ...OVERLAY_WINDOW_OPTS
   })
 
   window.loadURL(`data:text/html;charset=utf-8,
@@ -55,7 +54,7 @@ function createWindow () {
 
   makeDemoInteractive()
 
-  OverlayWindow.attachTo(window, 'Untitled - Notepad')
+  OverlayController.attachByTitle(window, 'Untitled - Notepad')
 }
 
 function makeDemoInteractive () {
@@ -64,11 +63,11 @@ function makeDemoInteractive () {
   function toggleOverlayState () {
     if (isInteractable) {
       isInteractable = false
-      OverlayWindow.focusTarget()
+      OverlayController.focusTarget()
       window.webContents.send('focus-change', false)
     } else {
       isInteractable = true
-      OverlayWindow.activateOverlay()
+      OverlayController.activateOverlay()
       window.webContents.send('focus-change', true)
     }
   }

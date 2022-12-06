@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import { join } from 'path'
 import { throttle } from 'throttle-debounce'
 import { screen } from 'electron'
-import type { BrowserWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Rectangle, BrowserWindowConstructorOptions } from 'electron'
 const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
@@ -45,21 +45,15 @@ export interface MoveresizeEvent {
   height: number
 }
 
-declare interface OverlayWindow {
-  on(event: 'attach', listener: (e: AttachEvent) => void): this
-  on(event: 'focus', listener: () => void): this
-  on(event: 'blur', listener: () => void): this
-  on(event: 'detach', listener: () => void): this
-  on(event: 'fullscreen', listener: (e: FullscreenEvent) => void): this
-  on(event: 'moveresize', listener: (e: MoveresizeEvent) => void): this
-}
+export class OverlayWindow extends EventEmitter {
+  static #electronWindow: BrowserWindow
+  static #lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
+  static #isFocused = false
+  static #willBeFocused: 'overlay' | 'target' | undefined
 
-class OverlayWindow extends EventEmitter {
-  private _overlayWindow!: BrowserWindow
-  public defaultBehavior = true
-  private lastBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
+  static readonly events = new EventEmitter()
 
-  readonly WINDOW_OPTS = {
+  static readonly WINDOW_OPTS: BrowserWindowConstructorOptions = {
     fullscreenable: true,
     skipTaskbar: true,
     frame: false,
@@ -67,104 +61,131 @@ class OverlayWindow extends EventEmitter {
     transparent: true,
     // let Chromium to accept any size changes from OS
     resizable: true
-  } as const
-  
-  constructor () {
-    super()
+  }
 
-    this.on('attach', (e) => {
-      if (this.defaultBehavior) {
-        // linux: important to show window first before changing fullscreen
-        this._overlayWindow.showInactive()
-        if (e.isFullscreen !== undefined) {
-          this._overlayWindow.setFullScreen(e.isFullscreen)
-        }
-        this.lastBounds = e
-        this.updateOverlayBounds()
+  static {
+    OverlayWindow.events.on('attach', (e: AttachEvent) => {
+      OverlayWindow.#isFocused = true
+      OverlayWindow.#electronWindow.setIgnoreMouseEvents(true)
+      OverlayWindow.#electronWindow.showInactive()
+      if (process.platform === 'linux') {
+        OverlayWindow.#electronWindow.setSkipTaskbar(true)
       }
+      OverlayWindow.#electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      if (e.isFullscreen !== undefined) {
+        OverlayWindow.#electronWindow.setFullScreen(e.isFullscreen)
+      }
+      OverlayWindow.#lastBounds = e
+      OverlayWindow.#updateOverlayBounds()
     })
 
-    this.on('fullscreen', (e) => {
-      if (this.defaultBehavior) {
-        this._overlayWindow.setFullScreen(e.isFullscreen)
-      }
+    OverlayWindow.events.on('fullscreen', (e: FullscreenEvent) => {
+      OverlayWindow.#electronWindow.setFullScreen(e.isFullscreen)
     })
 
-    this.on('detach', () => {
-      if (this.defaultBehavior) {
-        this._overlayWindow.hide()
-      }
+    OverlayWindow.events.on('detach', () => {
+      OverlayWindow.#isFocused = false
+      OverlayWindow.#electronWindow.hide()
     })
 
-    const dispatchMoveresize = throttle(34 /* 30fps */, this.updateOverlayBounds.bind(this))
+    const dispatchMoveresize = throttle(34 /* 30fps */, OverlayWindow.#updateOverlayBounds)
 
-    this.on('moveresize', (e) => {
-      this.lastBounds = e
+    OverlayWindow.events.on('moveresize', (e: MoveresizeEvent) => {
+      OverlayWindow.#lastBounds = e
       dispatchMoveresize()
+    })
+
+    OverlayWindow.events.on('blur', () => {
+      OverlayWindow.#isFocused = false
+
+      if (OverlayWindow.#willBeFocused !== 'overlay' && !OverlayWindow.#electronWindow.isFocused()) {
+        OverlayWindow.#electronWindow.hide()
+      }
+    })
+
+    OverlayWindow.events.on('focus', () => {
+      OverlayWindow.#willBeFocused = undefined
+      OverlayWindow.#isFocused = true
+
+      OverlayWindow.#electronWindow.setIgnoreMouseEvents(true)
+      if (!OverlayWindow.#electronWindow.isVisible()) {
+        OverlayWindow.#electronWindow.showInactive()
+        if (process.platform === 'linux') {
+          OverlayWindow.#electronWindow.setSkipTaskbar(true)
+        }
+        OverlayWindow.#electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      }
     })
   }
 
-  private updateOverlayBounds () {
-    let lastBounds = this.lastBounds
+  static #updateOverlayBounds () {
+    let lastBounds = OverlayWindow.#lastBounds
     if (lastBounds.width != 0 && lastBounds.height != 0) {
       if (process.platform === 'win32') {
-        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
+        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.#lastBounds)
       }
-      this._overlayWindow.setBounds(lastBounds)
+      OverlayWindow.#electronWindow.setBounds(lastBounds)
       if (process.platform === 'win32') {
         // if moved to screen with different DPI, 2nd call to setBounds will correctly resize window
         // dipRect must be recalculated as well
-        lastBounds = screen.screenToDipRect(this._overlayWindow, this.lastBounds)
-        this._overlayWindow.setBounds(lastBounds)
+        lastBounds = screen.screenToDipRect(OverlayWindow.#electronWindow, OverlayWindow.#lastBounds)
+        OverlayWindow.#electronWindow.setBounds(lastBounds)
       }
     }
   }
 
-  private handler (e: unknown) {
+  static #handler (e: unknown) {
     switch ((e as { type: EventType }).type) {
       case EventType.EVENT_ATTACH:
-        this.emit('attach', e)
+        OverlayWindow.events.emit('attach', e)
         break
       case EventType.EVENT_FOCUS:
-        this.emit('focus', e)
+        OverlayWindow.events.emit('focus', e)
         break
       case EventType.EVENT_BLUR:
-        this.emit('blur', e)
+        OverlayWindow.events.emit('blur', e)
         break
       case EventType.EVENT_DETACH:
-        this.emit('detach', e)
+        OverlayWindow.events.emit('detach', e)
         break
       case EventType.EVENT_FULLSCREEN:
-        this.emit('fullscreen', e)
+        OverlayWindow.events.emit('fullscreen', e)
         break
       case EventType.EVENT_MOVERESIZE:
-        this.emit('moveresize', e)
+        OverlayWindow.events.emit('moveresize', e)
         break
     }
   }
 
-  activateOverlay() {
-    if (process.platform === 'win32') {
-      // reason: - window lags a bit using .focus()
-      //         - crashes on close if using .show()
-      //         - also crashes if using .moveTop()
-      lib.activateOverlay()
-    } else {
-      this._overlayWindow.focus()
-    }
+  static activateOverlay () {
+    OverlayWindow.#willBeFocused = 'overlay'
+    OverlayWindow.#electronWindow.setIgnoreMouseEvents(false)
+    OverlayWindow.#electronWindow.focus()
   }
 
-  focusTarget() {
+  static focusTarget () {
+    OverlayWindow.#willBeFocused = 'target'
     lib.focusTarget()
   }
 
-  attachTo (overlayWindow: BrowserWindow, targetWindowTitle: string) {
-    if (this._overlayWindow) {
+  static attachTo (overlayWindow: BrowserWindow, targetWindowTitle: string) {
+    if (OverlayWindow.#electronWindow) {
       throw new Error('Library can be initialized only once.')
+    } else {
+      OverlayWindow.#electronWindow = overlayWindow
     }
-    this._overlayWindow = overlayWindow
-    lib.start(overlayWindow.getNativeWindowHandle(), targetWindowTitle, this.handler.bind(this))
+
+    OverlayWindow.#electronWindow.on('blur', () => {
+      if (!OverlayWindow.#isFocused &&
+          OverlayWindow.#willBeFocused !== 'target') {
+        OverlayWindow.#electronWindow.hide()
+      }
+    })
+
+    OverlayWindow.#electronWindow.on('focus', () => {
+      OverlayWindow.#willBeFocused = undefined
+    })
+
+    lib.start(OverlayWindow.#electronWindow.getNativeWindowHandle(), targetWindowTitle, OverlayWindow.#handler)
   }
 }
-
-export const overlayWindow = new OverlayWindow()

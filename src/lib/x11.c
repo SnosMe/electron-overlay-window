@@ -149,7 +149,6 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
 
       if (target_info->is_destroyed) {
         target_info->window_id = XCB_WINDOW_NONE;
-        xcb_change_property(x_conn, XCB_PROP_MODE_REPLACE, overlay_info.window_id, XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 32, 1, (void*)&target_info->window_id);
 
         target_info->is_destroyed = false;
         struct ow_event e = { .type = OW_DETACH };
@@ -182,7 +181,6 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
   }
 
   target_info->window_id = wid;
-  xcb_change_property(x_conn, XCB_PROP_MODE_REPLACE, overlay_info.window_id, XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 32, 1, (void*)&target_info->window_id);
 
   // listen for `_NET_WM_STATE` fullscreen and window move/resize/destroy
   uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY };

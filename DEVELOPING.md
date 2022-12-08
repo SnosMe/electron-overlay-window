@@ -2,7 +2,7 @@
 
 ## Building for release
 
-Running `yarn prebuild` and `yarn build-ts` should build everything needed
+Running `yarn prebuild` and `yarn tsc` should build everything needed
 for release.
 
 ## Testing with the demo app
@@ -60,5 +60,4 @@ Immediately on attaching to a window, a background thread executes
 - Create hooks for window move and destroy
   - Cleans up any existing hooks before this
 - Attaches the target's input handling to the overlay's input handling
-- Make the overlay window have the other window as a parent
 - Emit attach and focus events

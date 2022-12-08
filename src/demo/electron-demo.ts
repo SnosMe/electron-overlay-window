@@ -6,6 +6,9 @@ app.disableHardwareAcceleration()
 
 let window: BrowserWindow
 
+const toggleMouseKey = 'CmdOrCtrl + J'
+const toggleShowKey = 'CmdOrCtrl + K'
+
 function createWindow () {
   window = new BrowserWindow({
     width: 400,
@@ -27,8 +30,8 @@ function createWindow () {
         <div style="padding: 16px; border-radius: 8px; background: rgb(255,255,255); border: 4px solid red; display: inline-block;">
           <span>Overlay Window</span>
           <span id="text1"></span>
-          <br><span><b>CmdOrCtrl + Q</b> to toggle setIgnoreMouseEvents</span>
-          <br><span><b>CmdOrCtrl + H</b> to "hide" overlay using CSS</span>
+          <br><span><b>${toggleMouseKey}</b> to toggle setIgnoreMouseEvents</span>
+          <br><span><b>${toggleShowKey}</b> to "hide" overlay using CSS</span>
         </div>
       </div>
       <script>
@@ -54,7 +57,11 @@ function createWindow () {
 
   makeDemoInteractive()
 
-  OverlayController.attachByTitle(window, 'Untitled - Notepad')
+  OverlayController.attachByTitle(
+    window,
+    process.platform === 'darwin' ? 'Untitled' : 'Untitled - Notepad',
+    { hasTitleBarOnMac: true }
+  )
 }
 
 function makeDemoInteractive () {
@@ -77,9 +84,9 @@ function makeDemoInteractive () {
     window.webContents.send('focus-change', false)
   })
 
-  globalShortcut.register('CmdOrCtrl + Q', toggleOverlayState)
+  globalShortcut.register(toggleMouseKey, toggleOverlayState)
 
-  globalShortcut.register('CmdOrCtrl + H', () => {
+  globalShortcut.register(toggleShowKey, () => {
     window.webContents.send('visibility-change', false)
   })
 }

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import { join } from 'path'
 import { throttle } from 'throttle-debounce'
 import { screen } from 'electron'
-import type { BrowserWindow, Rectangle, BrowserWindowConstructorOptions } from 'electron'
+import { BrowserWindow, Rectangle, BrowserWindowConstructorOptions } from 'electron'
 const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
@@ -45,6 +45,14 @@ export interface MoveresizeEvent {
   height: number
 }
 
+export interface AttachToOptions {
+  // Whether the Window has a title bar. We adjust the overlay to not cover
+  // it
+  hasTitleBarOnMac?: boolean
+}
+
+const isMac = process.platform === 'darwin'
+
 export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
   fullscreenable: true,
   skipTaskbar: true,
@@ -52,15 +60,24 @@ export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
   show: false,
   transparent: true,
   // let Chromium to accept any size changes from OS
-  resizable: true
+  resizable: true,
+  // disable shadow for Mac OS
+  hasShadow: !isMac,
+  // float above all windows on Mac OS
+  alwaysOnTop: isMac
 }
 
 class OverlayControllerGlobal {
   private electronWindow!: BrowserWindow
+  // Exposed so that apps can get the current bounds of the target
   // NOTE: stores screen physical rect on Windows
   targetBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
   targetHasFocus = false
   private focusNext: 'overlay' | 'target' | undefined
+  // The height of a title bar on a standard window. Only measured on Mac
+  private macTitleBarHeight = 0
+  private attachToOptions: AttachToOptions = {}
+
   readonly events = new EventEmitter()
 
   constructor () {
@@ -73,14 +90,14 @@ class OverlayControllerGlobal {
       }
       this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       if (e.isFullscreen !== undefined) {
-        this.electronWindow.setFullScreen(e.isFullscreen)
+        this.handleFullscreen(e.isFullscreen)
       }
       this.targetBounds = e
       this.updateOverlayBounds()
     })
 
     this.events.on('fullscreen', (e: FullscreenEvent) => {
-      this.electronWindow.setFullScreen(e.isFullscreen)
+      this.handleFullscreen(e.isFullscreen)
     })
 
     this.events.on('detach', () => {
@@ -98,7 +115,7 @@ class OverlayControllerGlobal {
     this.events.on('blur', () => {
       this.targetHasFocus = false
 
-      if (this.focusNext !== 'overlay' && !this.electronWindow.isFocused()) {
+      if (isMac || this.focusNext !== 'overlay' && !this.electronWindow.isFocused()) {
         this.electronWindow.hide()
       }
     })
@@ -118,8 +135,27 @@ class OverlayControllerGlobal {
     })
   }
 
+  private async handleFullscreen(isFullscreen: boolean) {
+    if (isMac) {
+      // On Mac, only a single app can be fullscreen, so we can't go
+      // fullscreen. We get around it by making it display on all workspaces,
+      // based on code from:
+      // https://github.com/electron/electron/issues/10078#issuecomment-754105005
+      this.electronWindow.setVisibleOnAllWorkspaces(isFullscreen, { visibleOnFullScreen: true })
+      if (isFullscreen) {
+        const display = screen.getPrimaryDisplay()
+        this.electronWindow.setBounds(display.bounds)
+      } else {
+        // Set it back to `lastBounds` as set before fullscreen
+        this.updateOverlayBounds();
+      }
+    } else {
+      this.electronWindow.setFullScreen(isFullscreen)
+    }
+  }
+
   private updateOverlayBounds () {
-    let lastBounds = this.targetBounds
+    let lastBounds = this.adjustBoundsForMacTitleBar(this.targetBounds)
     if (lastBounds.width === 0 || lastBounds.height === 0) return
 
     if (process.platform === 'win32') {
@@ -158,6 +194,40 @@ class OverlayControllerGlobal {
     }
   }
 
+  /**
+   * Create a dummy window to calculate the title bar height on Mac. We use
+   * the title bar height to adjust the size of the overlay to not overlap
+   * the title bar. This helps Mac match the behaviour on Windows/Linux.
+   */
+  private calculateMacTitleBarHeight () {
+    const testWindow = new BrowserWindow({
+      width: 400,
+      height: 300,
+      webPreferences: {
+        nodeIntegration: true
+      },
+      show: false,
+    })
+    const fullHeight = testWindow.getSize()[1]
+    const contentHeight = testWindow.getContentSize()[1]
+    this.macTitleBarHeight = fullHeight - contentHeight
+    testWindow.close()
+  }
+
+  /** If we're on a Mac, adjust the bounds to not overlap the title bar */
+  private adjustBoundsForMacTitleBar (bounds: Rectangle) {
+    if (!isMac || !this.attachToOptions.hasTitleBarOnMac) {
+      return bounds
+    }
+
+    const newBounds: Rectangle = {
+      ...bounds,
+      y: bounds.y + this.macTitleBarHeight,
+      height: bounds.height - this.macTitleBarHeight
+    }
+    return newBounds
+  }
+
   activateOverlay () {
     this.focusNext = 'overlay'
     this.electronWindow.setIgnoreMouseEvents(false)
@@ -166,10 +236,11 @@ class OverlayControllerGlobal {
 
   focusTarget () {
     this.focusNext = 'target'
+    this.electronWindow.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }
 
-  attachByTitle (electronWindow: BrowserWindow, targetWindowTitle: string) {
+  attachByTitle (electronWindow: BrowserWindow, targetWindowTitle: string, options: AttachToOptions = {}) {
     if (this.electronWindow) {
       throw new Error('Library can be initialized only once.')
     } else {
@@ -185,6 +256,11 @@ class OverlayControllerGlobal {
     this.electronWindow.on('focus', () => {
       this.focusNext = undefined
     })
+
+    this.attachToOptions = options
+    if (isMac) {
+      this.calculateMacTitleBarHeight()
+    }
 
     lib.start(
       this.electronWindow.getNativeWindowHandle(),

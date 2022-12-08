@@ -45,7 +45,7 @@ export interface MoveresizeEvent {
   height: number
 }
 
-export interface AttachToOptions {
+export interface AttachOptions {
   // Whether the Window has a title bar. We adjust the overlay to not cover
   // it
   hasTitleBarOnMac?: boolean
@@ -76,7 +76,7 @@ class OverlayControllerGlobal {
   private focusNext: 'overlay' | 'target' | undefined
   // The height of a title bar on a standard window. Only measured on Mac
   private macTitleBarHeight = 0
-  private attachToOptions: AttachToOptions = {}
+  private attachOptions: AttachOptions = {}
 
   readonly events = new EventEmitter()
 
@@ -216,7 +216,7 @@ class OverlayControllerGlobal {
 
   /** If we're on a Mac, adjust the bounds to not overlap the title bar */
   private adjustBoundsForMacTitleBar (bounds: Rectangle) {
-    if (!isMac || !this.attachToOptions.hasTitleBarOnMac) {
+    if (!isMac || !this.attachOptions.hasTitleBarOnMac) {
       return bounds
     }
 
@@ -240,7 +240,7 @@ class OverlayControllerGlobal {
     lib.focusTarget()
   }
 
-  attachByTitle (electronWindow: BrowserWindow, targetWindowTitle: string, options: AttachToOptions = {}) {
+  attachByTitle (electronWindow: BrowserWindow, targetWindowTitle: string, options: AttachOptions = {}) {
     if (this.electronWindow) {
       throw new Error('Library can be initialized only once.')
     } else {
@@ -257,7 +257,7 @@ class OverlayControllerGlobal {
       this.focusNext = undefined
     })
 
-    this.attachToOptions = options
+    this.attachOptions = options
     if (isMac) {
       this.calculateMacTitleBarHeight()
     }

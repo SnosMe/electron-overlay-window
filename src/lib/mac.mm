@@ -7,7 +7,8 @@
 
 /**
  * FORMATTING: This file was formatted automatically with clang-format.
- * We recommend formatting with clang-format before commiting updates.
+ * We recommend formatting with clang-format before committing updates by
+ * running: `clang-format src/lib/mac.mm -i`
  *
  * This file handles the overlay window for Mac. It:
  *
@@ -205,7 +206,16 @@ static bool getBounds(CGWindowID windowID, ow_window_bounds *outputBounds) {
   return false;
 }
 
-static void emitMoveResizeEvent(CGWindowID windowID) {
+struct ow_window_bounds previousBounds = {
+    .x = -1, .y = -1, .width = 0, .height = 0};
+
+static bool areBoundsEqual(const ow_window_bounds &lhs,
+                           const ow_window_bounds &rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y && lhs.width == rhs.width &&
+         lhs.height == rhs.height;
+}
+
+static void maybeEmitMoveResizeEvent(CGWindowID windowID) {
   if (!targetInfo.element) {
     return;
   }
@@ -216,9 +226,15 @@ static void emitMoveResizeEvent(CGWindowID windowID) {
 
   struct ow_window_bounds bounds;
   if (getBounds(windowID, &bounds)) {
-    struct ow_event e = {.type = OW_MOVERESIZE,
-                         .data.moveresize = {.bounds = bounds}};
-    ow_emit_event(&e);
+    if (!areBoundsEqual(bounds, previousBounds)) {
+      struct ow_event e = {.type = OW_MOVERESIZE,
+                           .data.moveresize = {.bounds = bounds}};
+      ow_emit_event(&e);
+      previousBounds = bounds;
+      // NSLog(@"maybeEmitMoveResizeEvent: x %d y %d width %d height %d",
+      // bounds.x,
+      //      bounds.y, bounds.width, bounds.height);
+    }
   }
 }
 
@@ -266,7 +282,7 @@ static void hookProcTargetWindow(AXObserverRef observer, AXUIElementRef element,
     if ([notificationType
             isEqualToString:(__bridge NSString *)moveResizeNotificationType]) {
       CGWindowID windowID = getWindowID(element);
-      emitMoveResizeEvent(windowID);
+      maybeEmitMoveResizeEvent(windowID);
     }
   }
 
@@ -289,46 +305,15 @@ static void hookProcTargetWindow(AXObserverRef observer, AXUIElementRef element,
 }
 
 /**
- * Checks whether the system is currently full-screen. From logic in this
- * StackOverflow answer. This only works if the user only has 1 screen.
- *
- * https://stackoverflow.com/questions/23896803/os-x-detecting-when-front-app-goes-into-fullscreen-mode
- */
-static bool isFullscreenFromWindows() {
-  NSArray *windows = CFBridgingRelease(CGWindowListCopyWindowInfo(
-      kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
-
-  for (NSDictionary *info in windows) {
-    // Based on logic from
-    // https://stackoverflow.com/questions/23896803/os-x-detecting-when-front-app-goes-into-fullscreen-mode
-    // In full-screen, very few windows are present. We return that it's
-    // full-screen only if no SystemUIServer windows are present.
-    if ([info[@"kCGWindowOwnerName"] isEqualToString:@"SystemUIServer"]) {
-      return false;
-    }
-  }
-  
-  return true;
-}
-
-/**
  * Checks whether the system is currently full-screen. This logic seems to
  * only work once per focus, but it does work on multiple screens.
  */
-static bool isFullscreenFromBounds(CGWindowID targetWindowID) {
+static bool isFullscreen(CGWindowID targetWindowID) {
   ow_window_bounds bounds;
   bool success = getBounds(targetWindowID, &bounds);
 
   // The y should only be 0 if the app is fullscreen
   return success && bounds.y == 0;
-}
-
-/**
- * Checks whether the system is currently full-screen. This logic was
- * determined experimentally.
- */
-static bool isFullscreen(CGWindowID targetWindowID) {
-  return isFullscreenFromWindows() || isFullscreenFromBounds(targetWindowID);
 }
 
 /**
@@ -423,17 +408,27 @@ static void updateWindowInfo(
                                        notificationTypes, isTargetWindow);
 }
 
+NSTimer *latestTimer = NULL;
+
 /**
  * For a brief while after we reattach accessibility observers to a new app,
  * that new app may not report any events. For that amount of time, we
  * manually poll for changes.
  *
  * This seems to only last for 2-3 seconds, but we poll for 5s to be safe.
+ *
+ * Similarly, we also poll when fullscreen changes, as the window takes just
+ * over a second to animate to its final size.
  */
-static void pollAfterAppObserverChange() {
+static void pollForWindowChanges() {
   NSTimeInterval secondsToPoll = 5;
   NSTimeInterval startTime = [[NSDate date] timeIntervalSince1970];
-  [NSTimer
+
+  if (latestTimer) {
+    [latestTimer invalidate];
+  }
+
+  latestTimer = [NSTimer
       scheduledTimerWithTimeInterval:0.2
                              repeats:YES
                                block:^(NSTimer *timer) {
@@ -455,7 +450,7 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
   CGWindowID frontmostWindowID = getWindowID(frontmostWindow);
   CGWindowID targetWindowID = getWindowID(targetInfo.element);
   CGWindowID overlayWindowID =
-      overlayInfo.window ? [overlayInfo.window windowNumber] : 0;
+      overlayInfo.window ? (CGWindowID)[overlayInfo.window windowNumber] : 0;
 
   // Emit blur/detach/focus if the frontmost window has changed
   // We count the target as focused even if the overlay is focused, since
@@ -505,7 +500,7 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
     AXUIElementRef application = AXUIElementCreateApplication(pid);
     updateWindowInfo(pid, application, frontmostInfo, appFocusNotificationTypes,
                      /* isTargetWindow */ false);
-    pollAfterAppObserverChange();
+    pollForWindowChanges();
   }
 
   // For the rest of this function, only run if the title matches
@@ -513,6 +508,11 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
   if (!title || ![title isEqualToString:@(targetInfo.title)]) {
     return;
   }
+  
+  // Emit size changes if the window is currently frontmost. This is helpful
+  // to ensure the size updates after we go fullscreen, since the size takes
+  // a while to animate.
+  maybeEmitMoveResizeEvent(frontmostWindowID);
 
   // The rest of the initialization/teardown logic only needs to be run
   // if the target window has changed
@@ -579,6 +579,7 @@ static void observeFullscreen() {
 
   void (^onPossibleFullscreen)(void) = ^() {
     handleFocusMaybeChanged();
+    pollForWindowChanges();
   };
   [fullscreenObserver addBlock:onPossibleFullscreen];
 
@@ -595,6 +596,27 @@ static void observeFullscreen() {
                    queue:NULL
               usingBlock:^(NSNotification *note) {
                 handleFocusMaybeChanged();
+                pollForWindowChanges();
+              }];
+}
+
+/**
+ * Create an observer that calls `handleFocusMaybeChanged` whenever a new app
+ * is activated.
+ *
+ * This seems to have the important side effect of making foreground window
+ * information update much more quickly too.
+ */
+static void observeActivateApplication() {
+  [[[NSWorkspace sharedWorkspace] notificationCenter]
+      addObserverForName:NSWorkspaceDidActivateApplicationNotification
+                  object:NULL
+                   queue:NULL
+              usingBlock:^(NSNotification *note) {
+                // NSRunningApplication *app =
+                //     [note.userInfo objectForKey:NSWorkspaceApplicationKey];
+                // NSLog(@"observeActivateApplication %@", app.localizedName);
+                handleFocusMaybeChanged();
               }];
 }
 
@@ -604,6 +626,7 @@ static void observeFullscreen() {
  */
 static void hookThread(void *_arg) {
   observeFullscreen();
+  observeActivateApplication();
   waitUntilAccessibilityGranted();
   handleFocusMaybeChanged();
 

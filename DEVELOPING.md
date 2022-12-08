@@ -12,9 +12,8 @@ will build and run a demo app that's useful for testing this.
 
 ## Debugging native Mac code
 
-1.  Create an XCode project by running `node-gyp configure -- -f xcode`.
+1.  Create an XCode project by running `node-gyp configure --debug -- -f xcode`.
 2.  Change to debug mode by running `node-gyp configure --debug`.
-    - If there is a previous debug 
 3.  Run the Electron demo by running `yarn demo:electron`
 3.  Go into XCode, open the project in `build/binding.xcodeproj`, and then use
     the "Debug > Attach to Process" menu to attach to the Electron process.
@@ -32,8 +31,8 @@ the overlay.
 
 On startup:
 
-- User calls `OverlayWindow.attachTo()`
-- `attachTo` calls `lib.start()`, which corresponds to the `AddonStart`
+- User calls `OverlayController.attachByTitle()`
+- `attachByTitle` calls `lib.start()`, which corresponds to the `AddonStart`
   function inside of addon.c
 - `AddonStart` largely delegates the platform specific code by calling
   `ow_start_hook`, a function defined for each platform.

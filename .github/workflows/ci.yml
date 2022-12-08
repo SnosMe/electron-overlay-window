@@ -30,10 +30,24 @@ jobs:
         name: linux
         path: prebuilds
 
+  prebuild-darwin:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+    - run: yarn --frozen-lockfile
+    - run: yarn prebuild --arch x64
+    - run: yarn prebuild --arch arm64
+    - uses: actions/upload-artifact@v3
+      with:
+        name: darwin
+        path: prebuilds
+
   build-package:
     needs:
     - prebuild-windows
     - prebuild-linux
+    - prebuild-darwin
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -44,6 +58,10 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: linux
+        path: prebuilds
+    - uses: actions/download-artifact@v3
+      with:
+        name: darwin
         path: prebuilds
     - uses: actions/setup-node@v3
     - run: yarn --frozen-lockfile --ignore-scripts

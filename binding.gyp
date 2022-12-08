@@ -36,7 +36,24 @@
       	  'sources': [
             'src/lib/x11.c',
           ]
-      	}]
+        }],
+        ['OS=="mac"', {
+          'link_settings': {
+            'libraries': [
+              '-lpthread', '-framework AppKit', '-framework ApplicationServices'
+            ]
+          },
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-fobjc-arc'
+            ]
+          },
+          'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread'],
+          'sources': [
+            'src/lib/mac.mm',
+            'src/lib/mac/OWFullscreenObserver.mm'
+          ]
+        }]
       ]
     }
   ]

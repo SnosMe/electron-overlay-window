@@ -6,6 +6,7 @@
 #include "overlay_window.h"
 
 static napi_threadsafe_function threadsafe_fn = NULL;
+static struct ow_window_bounds last_reported_bounds = {0, 0, 0, 0};
 
 void ow_emit_event(struct ow_event* event) {
   if (threadsafe_fn == NULL) return;
@@ -136,6 +137,11 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
 
 void tsfn_to_js_proxy(napi_env env, napi_value js_callback, void* context, void* _event) {
   struct ow_event* event = (struct ow_event*)_event;
+  if (event->type == OW_MOVERESIZE) {
+    last_reported_bounds = event->data.moveresize.bounds;
+  } else if (event->type == OW_ATTACH) {
+    last_reported_bounds = event->data.attach.bounds;
+  }
 
   napi_status status;
 
@@ -190,9 +196,23 @@ napi_value AddonActivateOverlay(napi_env _env, napi_callback_info _info) {
   return NULL;
 }
 
-napi_value AddondFocusTarget(napi_env env, napi_callback_info info) {
+napi_value AddonFocusTarget(napi_env env, napi_callback_info info) {
   ow_focus_target();
   return NULL;
+}
+
+napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
+  napi_status status;
+
+  napi_value img_buffer;
+  uint8_t* img_data;
+  size_t size = last_reported_bounds.width * last_reported_bounds.height * 4;
+  status = napi_create_buffer(env, size, &img_data, &img_buffer);
+  NAPI_FATAL_IF_FAILED(status, "AddonScreenshot", "napi_create_buffer");
+
+  ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
+
+  return img_buffer;
 }
 
 void AddonCleanUp(void* arg) {
@@ -214,9 +234,14 @@ NAPI_MODULE_INIT() {
   status = napi_set_named_property(env, exports, "activateOverlay", export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
 
-  status = napi_create_function(env, NULL, 0, AddondFocusTarget, NULL, &export_fn);
+  status = napi_create_function(env, NULL, 0, AddonFocusTarget, NULL, &export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
   status = napi_set_named_property(env, exports, "focusTarget", export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
+
+  status = napi_create_function(env, NULL, 0, AddonScreenshot, NULL, &export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
+  status = napi_set_named_property(env, exports, "screenshot", export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
 
   status = napi_add_env_cleanup_hook(env, AddonCleanUp, NULL);

@@ -349,3 +349,30 @@ void ow_activate_overlay() {
 void ow_focus_target() {
   SetForegroundWindow(target_info.hwnd);
 }
+
+void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height) {
+  POINT screenPos = {0, 0};
+  ClientToScreen(target_info.hwnd, &screenPos);
+
+  BITMAPINFOHEADER bi;
+  bi.biSize = sizeof(BITMAPINFOHEADER);
+  bi.biWidth = width;
+  bi.biHeight = -((int32_t)height); // top-down DIB
+  bi.biPlanes = 1;
+  bi.biBitCount = 32;
+  bi.biCompression = BI_RGB;
+  bi.biSizeImage = (width * height * 4);
+
+  HDC dcSrc = GetDC(GetDesktopWindow());
+  HDC dcDest = CreateCompatibleDC(dcSrc);
+  uint8_t* bmpData;
+  HBITMAP bmp = CreateDIBSection(dcSrc, (BITMAPINFO*)&bi, DIB_RGB_COLORS, &bmpData, NULL, 0);
+  SelectObject(dcDest, bmp);
+  BitBlt(dcDest, 0, 0, width, height, dcSrc, screenPos.x, screenPos.y, SRCCOPY);
+
+  memcpy(out, bmpData, bi.biSizeImage);
+
+  DeleteDC(dcDest);
+  ReleaseDC(target_info.hwnd, dcSrc);
+  DeleteObject(bmp);
+}

@@ -14,6 +14,7 @@ interface AddonExports {
 
   activateOverlay(): void
   focusTarget(): void
+  screenshot(): Buffer
 }
 
 enum EventType {
@@ -266,6 +267,14 @@ class OverlayControllerGlobal {
       this.electronWindow.getNativeWindowHandle(),
       targetWindowTitle,
       this.handler.bind(this))
+  }
+
+  // buffer suitable for use in `nativeImage.createFromBitmap`
+  screenshot (): Buffer {
+    if (process.platform !== 'win32') {
+      throw new Error('Not implemented on your platform.')
+    }
+    return lib.screenshot()
   }
 }
 

@@ -237,7 +237,6 @@ class OverlayControllerGlobal {
 
   focusTarget () {
     this.focusNext = 'target'
-    this.electronWindow.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }
 

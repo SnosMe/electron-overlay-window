@@ -166,9 +166,14 @@ napi_value AddonStart(napi_env env, napi_callback_info info) {
   NAPI_THROW_IF_FAILED(env, status, NULL);
 
   // [0] Overlay Window ID
-  void* overlay_window_id;
-  status = napi_get_buffer_info(env, info_argv[0], &overlay_window_id, NULL);
+  void* overlay_window_id = NULL;
+  bool has_window_id;
+  status = napi_is_buffer(env, info_argv[0], &has_window_id);
   NAPI_THROW_IF_FAILED(env, status, NULL);
+  if (has_window_id) {
+    status = napi_get_buffer_info(env, info_argv[0], &overlay_window_id, NULL);
+    NAPI_THROW_IF_FAILED(env, status, NULL);
+  }
 
   // [1] Target Window title
   size_t target_window_title_length;

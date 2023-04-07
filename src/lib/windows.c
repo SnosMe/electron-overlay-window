@@ -337,7 +337,9 @@ static void hook_thread(void* _arg) {
 
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
-  overlay_info.hwnd = *((HWND*)overlay_window_id);
+  if (overlay_window_id != NULL) {
+    overlay_info.hwnd = *((HWND*)overlay_window_id);
+  }
   WM_OVERLAY_UIPI_TEST = RegisterWindowMessage("ELECTRON_OVERLAY_UIPI_TEST");
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }

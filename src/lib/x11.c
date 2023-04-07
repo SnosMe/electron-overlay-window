@@ -285,9 +285,11 @@ static void hook_thread(void* _arg) {
   ATOM_NET_WM_STATE_SKIP_PAGER = atom_reply->atom;
   free(atom_reply);
 
-  // this functionality was removed in Electron 20.0
-  xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_TASKBAR);
-  xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_PAGER);
+  if (overlay_info.window_id != XCB_WINDOW_NONE) {
+    // this functionality was removed in Electron 20.0
+    xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_TASKBAR);
+    xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_PAGER);
+  }
 
   // listen for `_NET_ACTIVE_WINDOW` changes
   uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };
@@ -313,7 +315,9 @@ static void hook_thread(void* _arg) {
 
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
-  overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
+  if (overlay_window_id != NULL) {
+    overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
+  }
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 

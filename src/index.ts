@@ -7,7 +7,7 @@ const lib: AddonExports = require('node-gyp-build')(join(__dirname, '..'))
 
 interface AddonExports {
   start(
-    overlayWindowId: Buffer,
+    overlayWindowId: Buffer | undefined,
     targetWindowTitle: string,
     cb: (e: any) => void
   ): void
@@ -69,7 +69,8 @@ export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
 }
 
 class OverlayControllerGlobal {
-  private electronWindow!: BrowserWindow
+  private isInitialized = false
+  private electronWindow?: BrowserWindow
   // Exposed so that apps can get the current bounds of the target
   // NOTE: stores screen physical rect on Windows
   targetBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
@@ -84,9 +85,11 @@ class OverlayControllerGlobal {
   constructor () {
     this.events.on('attach', (e: AttachEvent) => {
       this.targetHasFocus = true
-      this.electronWindow.setIgnoreMouseEvents(true)
-      this.electronWindow.showInactive()
-      this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      if (this.electronWindow) {
+        this.electronWindow.setIgnoreMouseEvents(true)
+        this.electronWindow.showInactive()
+        this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      }
       if (e.isFullscreen !== undefined) {
         this.handleFullscreen(e.isFullscreen)
       }
@@ -100,7 +103,7 @@ class OverlayControllerGlobal {
 
     this.events.on('detach', () => {
       this.targetHasFocus = false
-      this.electronWindow.hide()
+      this.electronWindow?.hide()
     })
 
     const dispatchMoveresize = throttle(34 /* 30fps */, this.updateOverlayBounds.bind(this))
@@ -113,7 +116,9 @@ class OverlayControllerGlobal {
     this.events.on('blur', () => {
       this.targetHasFocus = false
 
-      if (isMac || this.focusNext !== 'overlay' && !this.electronWindow.isFocused()) {
+      if (this.electronWindow && (isMac ||
+        this.focusNext !== 'overlay' && !this.electronWindow.isFocused()
+      )) {
         this.electronWindow.hide()
       }
     })
@@ -122,15 +127,19 @@ class OverlayControllerGlobal {
       this.focusNext = undefined
       this.targetHasFocus = true
 
-      this.electronWindow.setIgnoreMouseEvents(true)
-      if (!this.electronWindow.isVisible()) {
-        this.electronWindow.showInactive()
-        this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+      if (this.electronWindow) {
+        this.electronWindow.setIgnoreMouseEvents(true)
+        if (!this.electronWindow.isVisible()) {
+          this.electronWindow.showInactive()
+          this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+        }
       }
     })
   }
 
   private async handleFullscreen(isFullscreen: boolean) {
+    if (!this.electronWindow) return
+
     if (isMac) {
       // On Mac, only a single app can be fullscreen, so we can't go
       // fullscreen. We get around it by making it display on all workspaces,
@@ -152,6 +161,7 @@ class OverlayControllerGlobal {
   private updateOverlayBounds () {
     let lastBounds = this.adjustBoundsForMacTitleBar(this.targetBounds)
     if (lastBounds.width === 0 || lastBounds.height === 0) return
+    if (!this.electronWindow) return
 
     if (process.platform === 'win32') {
       lastBounds = screen.screenToDipRect(this.electronWindow, this.targetBounds)
@@ -224,6 +234,9 @@ class OverlayControllerGlobal {
   }
 
   activateOverlay () {
+    if (!this.electronWindow) {
+      throw new Error('You are using the library in tracking mode')
+    }
     this.focusNext = 'overlay'
     this.electronWindow.setIgnoreMouseEvents(false)
     this.electronWindow.focus()
@@ -231,24 +244,25 @@ class OverlayControllerGlobal {
 
   focusTarget () {
     this.focusNext = 'target'
-    this.electronWindow.setIgnoreMouseEvents(true)
+    this.electronWindow?.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }
 
-  attachByTitle (electronWindow: BrowserWindow, targetWindowTitle: string, options: AttachOptions = {}) {
-    if (this.electronWindow) {
+  attachByTitle (electronWindow: BrowserWindow | undefined, targetWindowTitle: string, options: AttachOptions = {}) {
+    if (this.isInitialized) {
       throw new Error('Library can be initialized only once.')
     } else {
-      this.electronWindow = electronWindow
+      this.isInitialized = true
     }
+    this.electronWindow = electronWindow
 
-    this.electronWindow.on('blur', () => {
+    this.electronWindow?.on('blur', () => {
       if (!this.targetHasFocus && this.focusNext !== 'target') {
-        this.electronWindow.hide()
+        this.electronWindow!.hide()
       }
     })
 
-    this.electronWindow.on('focus', () => {
+    this.electronWindow?.on('focus', () => {
       this.focusNext = undefined
     })
 
@@ -258,7 +272,7 @@ class OverlayControllerGlobal {
     }
 
     lib.start(
-      this.electronWindow.getNativeWindowHandle(),
+      this.electronWindow?.getNativeWindowHandle(),
       targetWindowTitle,
       this.handler.bind(this))
   }

@@ -508,7 +508,7 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
   if (!title || ![title isEqualToString:@(targetInfo.title)]) {
     return;
   }
-  
+
   // Emit size changes if the window is currently frontmost. This is helpful
   // to ensure the size updates after we go fullscreen, since the size takes
   // a while to animate.
@@ -637,10 +637,12 @@ static void hookThread(void *_arg) {
 
 void ow_start_hook(char *target_window_title, void *overlay_window_id) {
   targetInfo.title = target_window_title;
-  // Cast to a weak pointer to avoid taking ownership of the view
-  NSView *overlayView = *(NSView * __weak *)(overlay_window_id);
-  NSWindow *overlayWindow = [overlayView window];
-  overlayInfo.window = overlayWindow;
+  if (overlay_window_id != NULL) {
+    // Cast to a weak pointer to avoid taking ownership of the view
+    NSView *overlayView = *(NSView * __weak *)(overlay_window_id);
+    NSWindow *overlayWindow = [overlayView window];
+    overlayInfo.window = overlayWindow;
+  }
 
   uv_thread_create(&hook_tid, hookThread, NULL);
 }

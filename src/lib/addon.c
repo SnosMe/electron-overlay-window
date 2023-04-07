@@ -210,7 +210,9 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   status = napi_create_buffer(env, size, &img_data, &img_buffer);
   NAPI_FATAL_IF_FAILED(status, "AddonScreenshot", "napi_create_buffer");
 
+#ifdef _WIN32
   ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
+#endif
 
   return img_buffer;
 }

@@ -5,22 +5,17 @@
 #include "napi_helpers.h"
 #include "overlay_window.h"
 
-static napi_threadsafe_function threadsafe_fn = NULL;
-static struct ow_window_bounds last_reported_bounds = {0, 0, 0, 0};
-
-void ow_emit_event(struct ow_event* event) {
-  if (threadsafe_fn == NULL) return;
-
+bool ow_emit_async_event(struct ow_event event, napi_threadsafe_function threadsafe_fn) {
   struct ow_event* copied_event = malloc(sizeof(struct ow_event));
-  memcpy(copied_event, event, sizeof(struct ow_event));
+  memcpy(copied_event, &event, sizeof(struct ow_event));
 
   napi_status status = napi_call_threadsafe_function(threadsafe_fn, copied_event, napi_tsfn_nonblocking);
   if (status == napi_closing) {
-    threadsafe_fn = NULL;
     free(copied_event);
-    return;
+    return false;
   }
-  NAPI_FATAL_IF_FAILED(status, "ow_emit_event", "napi_call_threadsafe_function");
+  NAPI_FATAL_IF_FAILED(status, "ow_emit_async_event", "napi_call_threadsafe_function");
+  return true;
 }
 
 napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
@@ -182,35 +177,133 @@ napi_value AddonStart(napi_env env, napi_callback_info info) {
   napi_value async_resource_name;
   status = napi_create_string_utf8(env, "OVERLAY_WINDOW", NAPI_AUTO_LENGTH, &async_resource_name);
   NAPI_THROW_IF_FAILED(env, status, NULL);
+  napi_threadsafe_function threadsafe_fn = NULL;
   status = napi_create_threadsafe_function(env, info_argv[2], NULL, async_resource_name, 0, 1, NULL, NULL, NULL, tsfn_to_js_proxy, &threadsafe_fn);
   NAPI_THROW_IF_FAILED(env, status, NULL);
 
-  // printf("start(window=%x, title=\"%s\")\n", *((int*)overlay_window_id), target_window_title);
-  ow_start_hook(target_window_title, overlay_window_id);
+  struct ow_task_ionut inout = {
+    .action = OW_TRACK,
+    .track = {
+      .app_window_id = overlay_window_id,
+      .target_window_title = target_window_title,
+      .tsfn = threadsafe_fn
+    }
+  };
+  ow_worker_exec_sync(&inout);
 
+  napi_value handle;
+  status = napi_create_uint32(env, inout.handle, &handle);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  return handle;
+}
+
+napi_value AddonActivateOverlay(napi_env env, napi_callback_info info) {
+  napi_status status;
+
+  size_t info_argc = 1;
+  napi_value info_argv[1];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [0] handle
+  uint32_t handle;
+  status = napi_get_value_uint32(env, info_argv[0], &handle);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  struct ow_task_ionut inout = {
+    .action = OW_FOCUS_APP,
+    .handle = handle
+  };
+  ow_worker_exec_sync(&inout);
   return NULL;
 }
 
-napi_value AddonActivateOverlay(napi_env _env, napi_callback_info _info) {
-  ow_activate_overlay();
+napi_value AddonStop(napi_env env, napi_callback_info info) {
+  napi_status status;
+
+  size_t info_argc = 1;
+  napi_value info_argv[1];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [0] handle
+  uint32_t handle;
+  status = napi_get_value_uint32(env, info_argv[0], &handle);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  struct ow_task_ionut inout = {
+    .action = OW_CANCEL_TRACKING,
+    .handle = handle
+  };
+  ow_worker_exec_sync(&inout);
+
+  status = napi_release_threadsafe_function(inout.track.tsfn, napi_tsfn_abort);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
   return NULL;
 }
 
 napi_value AddonFocusTarget(napi_env env, napi_callback_info info) {
-  ow_focus_target();
+  napi_status status;
+
+  size_t info_argc = 1;
+  napi_value info_argv[1];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [0] handle
+  uint32_t handle;
+  status = napi_get_value_uint32(env, info_argv[0], &handle);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  struct ow_task_ionut inout = {
+    .action = OW_FOCUS_TARGET,
+    .handle = handle
+  };
+  ow_worker_exec_sync(&inout);
   return NULL;
 }
 
 napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   napi_status status;
 
+  size_t info_argc = 3;
+  napi_value info_argv[3];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [0] handle
+  uint32_t handle;
+  status = napi_get_value_uint32(env, info_argv[0], &handle);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [1] width
+  uint32_t last_reported_width;
+  status = napi_get_value_uint32(env, info_argv[1], &last_reported_width);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [2] height
+  uint32_t last_reported_height;
+  status = napi_get_value_uint32(env, info_argv[2], &last_reported_height);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
   napi_value img_buffer;
   uint8_t* img_data;
-  size_t size = last_reported_bounds.width * last_reported_bounds.height * 4;
+  size_t size = last_reported_width * last_reported_height * 4;
   status = napi_create_buffer(env, size, &img_data, &img_buffer);
-  NAPI_FATAL_IF_FAILED(status, "AddonScreenshot", "napi_create_buffer");
+  NAPI_THROW_IF_FAILED(env, status, NULL);
 
-  ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
+  struct ow_task_ionut inout = {
+    .action = OW_TRACK,
+    .screenshot = {
+      .out = img_data,
+      .width = last_reported_width,
+      .height = last_reported_height
+    },
+    .handle = handle
+  };
+  ow_worker_exec_sync(&inout);
 
   return img_buffer;
 }

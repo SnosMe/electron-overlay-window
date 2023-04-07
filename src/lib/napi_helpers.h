@@ -1,5 +1,4 @@
-#ifndef ADDON_SRC_HELPERS_H_
-#define ADDON_SRC_HELPERS_H_
+#pragma once
 
 #include <node_api.h>
 
@@ -9,6 +8,12 @@
       napi_fatal_error(location, NAPI_AUTO_LENGTH,       \
                        message, NAPI_AUTO_LENGTH);       \
     }                                                    \
+  } while (0)
+
+#define NAPI_FATAL(location, message)                    \
+  do {                                                   \
+    napi_fatal_error(location, NAPI_AUTO_LENGTH,         \
+                      message, NAPI_AUTO_LENGTH);        \
   } while (0)
 
 #define NAPI_THROW_IF_FAILED_VOID(env, status)           \
@@ -49,5 +54,3 @@
 
 
 napi_value error_create(napi_env env);
-
-#endif // !ADDON_SRC_HELPERS_H_

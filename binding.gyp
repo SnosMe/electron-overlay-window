@@ -19,8 +19,13 @@
               'oleacc.lib'
             ]
           },
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'AdditionalOptions': ['/std:c++20'],
+            },
+          },
       	  'sources': [
-            'src/lib/windows.c',
+            'src/lib/windows.cpp',
           ]
       	}],
         ['OS=="linux"', {

@@ -1,11 +1,11 @@
-#ifndef ADDON_SRC_OVERLAY_WINDOW_H_
-#define ADDON_SRC_OVERLAY_WINDOW_H_
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <node_api.h>
 #include <uv.h>
 
 enum ow_event_type {
@@ -59,21 +59,35 @@ struct ow_event {
 
 static uv_thread_t hook_tid;
 
-// Passed the title and a pointer to the platform-specific window ID.
-// Window ID format depends on platform, see
-// https://www.electronjs.org/docs/api/browser-window#wingetnativewindowhandle
-void ow_start_hook(char* target_window_title, void* overlay_window_id);
+bool ow_emit_async_event(struct ow_event event, napi_threadsafe_function tsfn);
 
-void ow_activate_overlay();
+enum ow_worker_action {
+  OW_TRACK = 1,
+  OW_CANCEL_TRACKING,
+  OW_FOCUS_TARGET,
+  OW_FOCUS_APP,
+  OW_SCREENSHOT,
+};
 
-void ow_focus_target();
+struct ow_task_ionut {
+  enum ow_worker_action action;
+  union {
+    struct {
+      char* target_window_title;
+      void* app_window_id;
+      napi_threadsafe_function tsfn;
+    } track;
+    struct {
+      uint8_t* out;
+      uint32_t width;
+      uint32_t height;
+    } screenshot;
+  };
+  uint32_t handle;
+};
 
-void ow_emit_event(struct ow_event* event);
-
-void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height);
+void ow_worker_exec_sync(struct ow_task_ionut* data);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

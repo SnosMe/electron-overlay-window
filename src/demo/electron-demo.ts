@@ -59,7 +59,7 @@ function createWindow () {
 
   OverlayController.attachByTitle(
     window,
-    process.platform === 'darwin' ? 'Untitled' : 'Untitled - Notepad',
+    process.platform === 'darwin' ? 'Untitled' : 'Notepad',
     { hasTitleBarOnMac: true }
   )
 }

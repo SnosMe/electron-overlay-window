@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events'
-import { join } from 'path'
+import { EventEmitter } from 'node:events'
+import { join } from 'node:path'
 import { throttle } from 'throttle-debounce'
 import { screen } from 'electron'
 import { BrowserWindow, Rectangle, BrowserWindowConstructorOptions } from 'electron'
@@ -47,16 +47,16 @@ export interface MoveresizeEvent {
 }
 
 export interface AttachOptions {
-  // Whether the Window has a title bar. We adjust the overlay to not cover
-  // it
+  // Whether the Window has a title bar. We adjust the overlay to not cover it
   hasTitleBarOnMac?: boolean
 }
 
 const isMac = process.platform === 'darwin'
+const isLinux = process.platform === 'linux'
 
 export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
   fullscreenable: true,
-  skipTaskbar: true,
+  skipTaskbar: !isLinux,
   frame: false,
   show: false,
   transparent: true,
@@ -86,9 +86,6 @@ class OverlayControllerGlobal {
       this.targetHasFocus = true
       this.electronWindow.setIgnoreMouseEvents(true)
       this.electronWindow.showInactive()
-      if (process.platform === 'linux') {
-        this.electronWindow.setSkipTaskbar(true)
-      }
       this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       if (e.isFullscreen !== undefined) {
         this.handleFullscreen(e.isFullscreen)
@@ -128,9 +125,6 @@ class OverlayControllerGlobal {
       this.electronWindow.setIgnoreMouseEvents(true)
       if (!this.electronWindow.isVisible()) {
         this.electronWindow.showInactive()
-        if (process.platform === 'linux') {
-          this.electronWindow.setSkipTaskbar(true)
-        }
         this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
     })

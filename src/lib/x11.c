@@ -12,6 +12,8 @@ static xcb_atom_t ATOM_NET_WM_NAME;
 static xcb_atom_t ATOM_UTF8_STRING;
 static xcb_atom_t ATOM_NET_WM_STATE;
 static xcb_atom_t ATOM_NET_WM_STATE_FULLSCREEN;
+static xcb_atom_t ATOM_NET_WM_STATE_SKIP_TASKBAR;
+static xcb_atom_t ATOM_NET_WM_STATE_SKIP_PAGER;
 
 struct ow_target_window
 {
@@ -276,6 +278,16 @@ static void hook_thread(void* _arg) {
   atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN"), NULL);
   ATOM_NET_WM_STATE_FULLSCREEN = atom_reply->atom;
   free(atom_reply);
+  atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_SKIP_TASKBAR"), "_NET_WM_STATE_SKIP_TASKBAR"), NULL);
+  ATOM_NET_WM_STATE_SKIP_TASKBAR = atom_reply->atom;
+  free(atom_reply);
+  atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_SKIP_PAGER"), "_NET_WM_STATE_SKIP_PAGER"), NULL);
+  ATOM_NET_WM_STATE_SKIP_PAGER = atom_reply->atom;
+  free(atom_reply);
+
+  // this functionality was removed in Electron 20.0
+  xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_TASKBAR);
+  xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_PAGER);
 
   // listen for `_NET_ACTIVE_WINDOW` changes
   uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };

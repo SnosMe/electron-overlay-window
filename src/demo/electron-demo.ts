@@ -48,6 +48,11 @@ function createWindow () {
             document.body.style.display = 'none'
           }
         });
+
+        // NOTE: this is just for demo purposes
+        document.addEventListener('mousemove', (e) => {
+          console.log(e);
+        });
       </script>
     </body>
   `)
@@ -60,8 +65,11 @@ function createWindow () {
   OverlayController.attachByTitle(
     window,
     process.platform === 'darwin' ? 'Untitled' : 'Notepad',
-    { hasTitleBarOnMac: true }
-  )
+    {
+      hasTitleBarOnMac: true,
+      needForwardMouseInput: true
+    }
+  );
 }
 
 function makeDemoInteractive () {

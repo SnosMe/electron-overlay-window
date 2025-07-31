@@ -29,7 +29,7 @@
           ],
           'link_settings': {
             'libraries': [
-              '-lxcb', '-lpthread', '-lwayland-client', '-lxkbcommon'
+              '-lxcb', '-lpthread', '-lwayland-client'
             ]
           },
           'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread'],

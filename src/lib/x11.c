@@ -313,7 +313,7 @@ static void hook_thread(void* _arg) {
   }
 }
 
-void ow_start_hook(char* target_window_title, void* overlay_window_id) {
+void ow_start_hook_x11(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   if (overlay_window_id != NULL) {
     overlay_info.window_id = *((xcb_window_t*)overlay_window_id);

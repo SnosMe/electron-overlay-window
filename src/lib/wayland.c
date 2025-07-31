@@ -388,7 +388,7 @@ static void hook_thread(void* _arg) {
   wayland_cleanup();
 }
 
-void ow_start_hook(char* target_window_title, void* overlay_window_id) {
+void ow_start_hook_wayland(char* target_window_title, void* overlay_window_id) {
   if (!detect_wayland_environment()) {
     // Fall back to X11 or other backend
     return;

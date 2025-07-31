@@ -661,3 +661,30 @@ void ow_focus_target() {
   AXUIElementRef window = targetInfo.element;
   AXUIElementSetAttributeValue(window, kAXMainAttribute, kCFBooleanTrue);
 }
+
+
+void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height) {
+  if (targetInfo.element == NULL) {
+    return;
+  }
+
+  CGWindowID windowID = getWindowID(targetInfo.element);
+  if (windowID == 0) {
+    return;
+  }
+
+  CGImageRef image = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, windowID, kCGWindowImageBoundsIgnoreFraming);
+  if (image == NULL) {
+    return;
+  }
+
+  CGContextRef context = CGBitmapContextCreate(out, width, height, 8, width * 4, CGImageGetColorSpace(image), kCGImageAlphaPremultipliedLast);
+  if (context == NULL) {
+    CGImageRelease(image);
+    return;
+  }
+
+  CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+  CGContextRelease(context);
+  CGImageRelease(image);
+}

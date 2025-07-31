@@ -36,7 +36,7 @@
     "@types/node": "18.x.x",
     "@types/throttle-debounce": "5.x.x",
     "electron": "24.x.x",
-    "prebuildify": "5.x.x",
+    "prebuildify": "6.x.x",
     "typescript": "5.x.x"
   },
   "dependencies": {

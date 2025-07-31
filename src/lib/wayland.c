@@ -4,9 +4,18 @@
 #include <stdbool.h>
 #include <wayland-client.h>
 #include <wayland-client-protocol.h>
-#include <xkbcommon/xkbcommon.h>
 #include "overlay_window.h"
 #include "wayland-protocols.h"
+
+// Forward declarations
+static void add_window(struct org_kde_plasma_window *window, const char *title);
+static void plasma_window_handle_title_changed(void *data, struct org_kde_plasma_window *org_kde_plasma_window, const char *title);
+static void plasma_window_handle_state_changed(void *data, struct org_kde_plasma_window *org_kde_plasma_window, uint32_t changed, uint32_t set);
+static void plasma_window_handle_geometry(void *data, struct org_kde_plasma_window *org_kde_plasma_window, int32_t x, int32_t y, uint32_t width, uint32_t height);
+static void plasma_window_handle_unmapped(void *data, struct org_kde_plasma_window *org_kde_plasma_window);
+static void plasma_window_handle_mapped(void *data, struct org_kde_plasma_window *org_kde_plasma_window);
+static void plasma_window_handle_active_changed(void *data, struct org_kde_plasma_window *org_kde_plasma_window);
+static uv_thread_t hook_tid;
 
 // Wayland protocols
 struct wl_display *display = NULL;
@@ -110,6 +119,16 @@ static void plasma_window_management_handle_window_with_uuid(void *data,
 static const struct org_kde_plasma_window_management_listener plasma_window_management_listener = {
   .window = plasma_window_management_handle_window,
   .window_with_uuid = plasma_window_management_handle_window_with_uuid,
+};
+
+// Plasma window listener declaration
+static const struct org_kde_plasma_window_listener plasma_window_listener = {
+  .title_changed = plasma_window_handle_title_changed,
+  .state_changed = plasma_window_handle_state_changed,
+  .geometry = plasma_window_handle_geometry,
+  .unmapped = plasma_window_handle_unmapped,
+  .mapped = plasma_window_handle_mapped,
+  .active_changed = plasma_window_handle_active_changed,
 };
 
 // Helper functions for window management
@@ -289,15 +308,6 @@ static void plasma_window_handle_active_changed(void *data,
   }
 }
 
-static const struct org_kde_plasma_window_listener plasma_window_listener = {
-  .title_changed = plasma_window_handle_title_changed,
-  .state_changed = plasma_window_handle_state_changed,
-  .geometry = plasma_window_handle_geometry,
-  .unmapped = plasma_window_handle_unmapped,
-  .mapped = plasma_window_handle_mapped,
-  .active_changed = plasma_window_handle_active_changed,
-};
-
 static bool detect_wayland_environment() {
   const char *wayland_display = getenv("WAYLAND_DISPLAY");
   const char *xdg_session_type = getenv("XDG_SESSION_TYPE");
@@ -388,7 +398,7 @@ static void hook_thread(void* _arg) {
   wayland_cleanup();
 }
 
-void ow_start_hook_wayland(char* target_window_title, void* overlay_window_id) {
+void ow_wayland_start_hook(char* target_window_title, void* overlay_window_id) {
   if (!detect_wayland_environment()) {
     // Fall back to X11 or other backend
     return;
@@ -402,17 +412,17 @@ void ow_start_hook_wayland(char* target_window_title, void* overlay_window_id) {
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 
-void ow_activate_overlay() {
+void ow_wayland_activate_overlay() {
   // Activate overlay window on Wayland
   // Implementation depends on specific window management protocol
 }
 
-void ow_focus_target() {
+void ow_wayland_focus_target() {
   // Focus target window on Wayland
   // Implementation depends on specific window management protocol
 }
 
-void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height) {
+void ow_wayland_screenshot(uint8_t* out, uint32_t width, uint32_t height) {
   // Screenshot functionality on Wayland
   // Not implemented yet
 } 

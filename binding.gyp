@@ -29,12 +29,13 @@
           ],
           'link_settings': {
             'libraries': [
-              '-lxcb', '-lpthread'
+              '-lxcb', '-lpthread', '-lwayland-client'
             ]
           },
           'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread'],
       	  'sources': [
             'src/lib/x11.c',
+            'src/lib/wayland.c',
           ]
         }],
         ['OS=="mac"', {

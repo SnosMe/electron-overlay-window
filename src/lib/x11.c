@@ -313,7 +313,7 @@ static void hook_thread(void* _arg) {
   }
 }
 
-void ow_start_hook(char* target_window_title, void* overlay_window_id) {
+void ow_x11_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   if (overlay_window_id != NULL) {
     overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
@@ -321,11 +321,11 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 
-void ow_activate_overlay() {
+void ow_x11_activate_overlay() {
   // noop
 }
 
-void ow_focus_target() {
+void ow_x11_focus_target() {
   xcb_client_message_event_t* event = calloc(32, 1);
   event->response_type = XCB_CLIENT_MESSAGE;
   event->type = ATOM_NET_ACTIVE_WINDOW;

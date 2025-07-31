@@ -21,6 +21,7 @@ Important notes:
 Supported backends:
   - Windows (7 - 10)
   - Linux (X11)
+  - Linux (Wayland) - Experimental support for KDE Plasma
 
 Recommended dev utils
 - Windows: AccEvent (accevent.exe) and Inspect Object (inspect.exe) from Windows SDK

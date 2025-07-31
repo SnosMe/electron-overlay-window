@@ -54,6 +54,17 @@ export interface AttachOptions {
 const isMac = process.platform === 'darwin'
 const isLinux = process.platform === 'linux'
 
+// Detect Wayland environment
+function isWayland(): boolean {
+  if (!isLinux) return false
+  
+  const waylandDisplay = process.env.WAYLAND_DISPLAY
+  const xdgSessionType = process.env.XDG_SESSION_TYPE
+  
+  return (waylandDisplay && waylandDisplay.length > 0) ||
+         (xdgSessionType === 'wayland')
+}
+
 export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
   fullscreenable: true,
   skipTaskbar: !isLinux,
@@ -269,6 +280,13 @@ class OverlayControllerGlobal {
     this.attachOptions = options
     if (isMac) {
       this.calculateMacTitleBarHeight()
+    }
+
+    // Check if running on Wayland
+    if (isWayland()) {
+      console.log('Running on Wayland - using Wayland backend')
+    } else if (isLinux) {
+      console.log('Running on X11 - using X11 backend')
     }
 
     lib.start(

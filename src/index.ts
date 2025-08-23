@@ -90,10 +90,10 @@ class OverlayControllerGlobal {
         this.electronWindow.showInactive()
         this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
+      this.targetBounds = e
       if (e.isFullscreen !== undefined) {
         this.handleFullscreen(e.isFullscreen)
       }
-      this.targetBounds = e
       this.updateOverlayBounds()
     })
 
@@ -154,6 +154,9 @@ class OverlayControllerGlobal {
         this.updateOverlayBounds();
       }
     } else {
+      // First update bounds to match target, so that overlay enters fullscreen
+      // on correct monitor in multi-monitor configurations.
+      this.updateOverlayBounds()
       this.electronWindow.setFullScreen(isFullscreen)
     }
   }

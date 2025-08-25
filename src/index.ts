@@ -158,7 +158,7 @@ class OverlayControllerGlobal {
       // multi-monitor configurations. newBounds is true when trigger is 'attach' event, solves
       // fullscreen attach when target window us running before overlay (see issue #44, pr #45).
       if (newBounds !== undefined) {
-        this.targetBounds = this.targetBounds
+        this.targetBounds = newBounds
         this.updateOverlayBounds()
       }
       this.electronWindow.setFullScreen(isFullscreen)

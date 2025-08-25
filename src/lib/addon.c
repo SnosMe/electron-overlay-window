@@ -210,7 +210,7 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   napi_status status;
 
   napi_value img_buffer;
-  uint8_t* img_data;
+  void* img_data;
   size_t size = last_reported_bounds.width * last_reported_bounds.height * 4;
   status = napi_create_buffer(env, size, &img_data, &img_buffer);
   NAPI_FATAL_IF_FAILED(status, "AddonScreenshot", "napi_create_buffer");

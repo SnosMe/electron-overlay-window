@@ -5,6 +5,11 @@
 #include "napi_helpers.h"
 #include "overlay_window.h"
 
+#ifdef __linux__
+extern void ow_x11_start_hook(char* target_window_title, void* overlay_window_id);
+extern void ow_wayland_start_hook(char* target_window_title, void* overlay_window_id);
+#endif
+
 static napi_threadsafe_function threadsafe_fn = NULL;
 static struct ow_window_bounds last_reported_bounds = {0, 0, 0, 0};
 
@@ -159,11 +164,10 @@ void tsfn_to_js_proxy(napi_env env, napi_value js_callback, void* context, void*
 
 napi_value AddonStart(napi_env env, napi_callback_info info) {
   napi_status status;
-
   size_t info_argc = 3;
   napi_value info_argv[3];
   status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
-  NAPI_THROW_IF_FAILED(env, status, NULL);
+  NAPI_FATAL_IF_FAILED(status, "AddonStart", "napi_get_cb_info");
 
   // [0] Overlay Window ID
   void* overlay_window_id = NULL;
@@ -183,15 +187,25 @@ napi_value AddonStart(napi_env env, napi_callback_info info) {
   status = napi_get_value_string_utf8(env, info_argv[1], target_window_title, target_window_title_length + 1, NULL);
   NAPI_THROW_IF_FAILED(env, status, NULL);
 
-  // [2] Event callback
+  // [2] Callback
   napi_value async_resource_name;
   status = napi_create_string_utf8(env, "OVERLAY_WINDOW", NAPI_AUTO_LENGTH, &async_resource_name);
   NAPI_THROW_IF_FAILED(env, status, NULL);
   status = napi_create_threadsafe_function(env, info_argv[2], NULL, async_resource_name, 0, 1, NULL, NULL, NULL, tsfn_to_js_proxy, &threadsafe_fn);
   NAPI_THROW_IF_FAILED(env, status, NULL);
 
-  // printf("start(window=%x, title=\"%s\")\n", *((int*)overlay_window_id), target_window_title);
+#ifdef __linux__
+  const char* wayland_display = getenv("WAYLAND_DISPLAY");
+  const char* xdg_session_type = getenv("XDG_SESSION_TYPE");
+  int use_wayland = (wayland_display && wayland_display[0]) || (xdg_session_type && strcmp(xdg_session_type, "wayland") == 0);
+  if (use_wayland) {
+    ow_wayland_start_hook(target_window_title, overlay_window_id);
+  } else {
+    ow_x11_start_hook(target_window_title, overlay_window_id);
+  }
+#else
   ow_start_hook(target_window_title, overlay_window_id);
+#endif
 
   return NULL;
 }
@@ -210,13 +224,13 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   napi_status status;
 
   napi_value img_buffer;
-  uint8_t* img_data;
+  void* img_data;
   size_t size = last_reported_bounds.width * last_reported_bounds.height * 4;
   status = napi_create_buffer(env, size, &img_data, &img_buffer);
   NAPI_FATAL_IF_FAILED(status, "AddonScreenshot", "napi_create_buffer");
 
 #ifdef _WIN32
-  ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
+  ow_screenshot((uint8_t*)img_data, last_reported_bounds.width, last_reported_bounds.height);
 #endif
 
   return img_buffer;

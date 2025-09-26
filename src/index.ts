@@ -49,6 +49,7 @@ export interface MoveresizeEvent {
 export interface AttachOptions {
   // Whether the Window has a title bar. We adjust the overlay to not cover it
   hasTitleBarOnMac?: boolean
+  needForwardMouseInput?: boolean
 }
 
 const isMac = process.platform === 'darwin'
@@ -86,7 +87,9 @@ class OverlayControllerGlobal {
     this.events.on('attach', (e: AttachEvent) => {
       this.targetHasFocus = true
       if (this.electronWindow) {
-        this.electronWindow.setIgnoreMouseEvents(true)
+        this.electronWindow.setIgnoreMouseEvents(true, {
+          forward: this.attachOptions.needForwardMouseInput
+        })
         this.electronWindow.showInactive()
         this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
@@ -128,7 +131,9 @@ class OverlayControllerGlobal {
       this.targetHasFocus = true
 
       if (this.electronWindow) {
-        this.electronWindow.setIgnoreMouseEvents(true)
+        this.electronWindow.setIgnoreMouseEvents(true, {
+          forward: this.attachOptions.needForwardMouseInput,
+        })
         if (!this.electronWindow.isVisible()) {
           this.electronWindow.showInactive()
           this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
@@ -245,13 +250,17 @@ class OverlayControllerGlobal {
       throw new Error('You are using the library in tracking mode')
     }
     this.focusNext = 'overlay'
-    this.electronWindow.setIgnoreMouseEvents(false)
+    this.electronWindow.setIgnoreMouseEvents(false, {
+      forward: this.attachOptions.needForwardMouseInput,
+    });
     this.electronWindow.focus()
   }
 
   focusTarget () {
     this.focusNext = 'target'
-    this.electronWindow?.setIgnoreMouseEvents(true)
+    this.electronWindow?.setIgnoreMouseEvents(true, {
+      forward: this.attachOptions.needForwardMouseInput,
+    });
     lib.focusTarget()
   }
 

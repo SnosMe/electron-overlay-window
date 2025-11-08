@@ -17,7 +17,9 @@ static xcb_atom_t ATOM_NET_WM_STATE_SKIP_PAGER;
 
 struct ow_target_window
 {
-  char* title;
+  char** titles;
+  int title_count;
+  char* current_title;
   xcb_window_t window_id;
   bool is_focused;
   bool is_destroyed;
@@ -32,7 +34,9 @@ struct ow_overlay_window
 static xcb_window_t active_window = XCB_WINDOW_NONE;
 
 static struct ow_target_window target_info = {
-  .title = NULL,
+  .titles = NULL,
+  .title_count = 0,
+  .current_title = NULL,
   .window_id = XCB_WINDOW_NONE,
   .is_focused = false,
   .is_destroyed = false,
@@ -314,7 +318,30 @@ static void hook_thread(void* _arg) {
 }
 
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
-  target_info.title = target_window_title;
+  // Single title mode, convert to multi-title array
+  target_info.titles = malloc(sizeof(char*));
+  target_info.titles[0] = malloc(strlen(target_window_title) + 1);
+  strcpy(target_info.titles[0], target_window_title);
+  target_info.title_count = 1;
+  target_info.current_title = NULL;
+  
+  if (overlay_window_id != NULL) {
+    overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
+  }
+  uv_thread_create(&hook_tid, hook_thread, NULL);
+}
+
+void ow_start_hook_multi(char** target_window_titles, int title_count, void* overlay_window_id) {
+  // Multi-title mode
+  target_info.title_count = title_count;
+  target_info.titles = malloc(sizeof(char*) * title_count);
+  target_info.current_title = NULL;
+  
+  for (int i = 0; i < title_count; i++) {
+    target_info.titles[i] = malloc(strlen(target_window_titles[i]) + 1);
+    strcpy(target_info.titles[i], target_window_titles[i]);
+  }
+  
   if (overlay_window_id != NULL) {
     overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
   }

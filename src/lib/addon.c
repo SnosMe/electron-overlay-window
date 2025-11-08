@@ -71,6 +71,19 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
     status = napi_create_uint32(env, event->data.attach.bounds.height, &e_height);
     NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
 
+    napi_value e_matched_title = NULL;
+    if (event->data.attach.matched_title != NULL) {
+      status = napi_create_string_utf8(env, event->data.attach.matched_title, NAPI_AUTO_LENGTH, &e_matched_title);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_string_utf8");
+    } else {
+      status = napi_get_undefined(env, &e_matched_title);
+      NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_get_undefined");
+    }
+
+    napi_value e_window_id;
+    status = napi_create_uint32(env, event->data.attach.window_id, &e_window_id);
+    NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_create_uint32");
+
     napi_property_descriptor descriptors[] = {
       { "type",         NULL, NULL, NULL, NULL, e_type,          napi_enumerable, NULL },
       { "hasAccess",    NULL, NULL, NULL, NULL, e_has_access,    napi_enumerable, NULL },
@@ -79,6 +92,8 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
       { "y",            NULL, NULL, NULL, NULL, e_y,             napi_enumerable, NULL },
       { "width",        NULL, NULL, NULL, NULL, e_width,         napi_enumerable, NULL },
       { "height",       NULL, NULL, NULL, NULL, e_height,        napi_enumerable, NULL },
+      { "matchedTitle", NULL, NULL, NULL, NULL, e_matched_title, napi_enumerable, NULL },
+      { "windowId",     NULL, NULL, NULL, NULL, e_window_id,     napi_enumerable, NULL },
     };
     status = napi_define_properties(env, event_obj, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
     NAPI_FATAL_IF_FAILED(status, "ow_event_to_js_object", "napi_define_properties");
@@ -196,6 +211,73 @@ napi_value AddonStart(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+napi_value AddonStartMulti(napi_env env, napi_callback_info info) {
+  napi_status status;
+
+  size_t info_argc = 3;
+  napi_value info_argv[3];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  // [0] Overlay Window ID
+  void* overlay_window_id = NULL;
+  bool has_window_id;
+  status = napi_is_buffer(env, info_argv[0], &has_window_id);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  if (has_window_id) {
+    status = napi_get_buffer_info(env, info_argv[0], &overlay_window_id, NULL);
+    NAPI_THROW_IF_FAILED(env, status, NULL);
+  }
+
+  // [1] Target Window titles array
+  bool is_array;
+  status = napi_is_array(env, info_argv[1], &is_array);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  if (!is_array) {
+    NAPI_THROW(env, "EINVAL", "Second argument must be an array of strings", NULL);
+  }
+
+  uint32_t title_count;
+  status = napi_get_array_length(env, info_argv[1], &title_count);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  if (title_count == 0) {
+    NAPI_THROW(env, "EINVAL", "Target window titles array cannot be empty", NULL);
+  }
+
+  char** target_window_titles = malloc(sizeof(char*) * title_count);
+  for (uint32_t i = 0; i < title_count; i++) {
+    napi_value title_value;
+    status = napi_get_element(env, info_argv[1], i, &title_value);
+    NAPI_THROW_IF_FAILED(env, status, NULL);
+
+    size_t title_length;
+    status = napi_get_value_string_utf8(env, title_value, NULL, 0, &title_length);
+    NAPI_THROW_IF_FAILED(env, status, NULL);
+    
+    target_window_titles[i] = malloc(sizeof(char) * title_length + 1);
+    status = napi_get_value_string_utf8(env, title_value, target_window_titles[i], title_length + 1, NULL);
+    NAPI_THROW_IF_FAILED(env, status, NULL);
+  }
+
+  // [2] Event callback
+  napi_value async_resource_name;
+  status = napi_create_string_utf8(env, "OVERLAY_WINDOW_MULTI", NAPI_AUTO_LENGTH, &async_resource_name);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  status = napi_create_threadsafe_function(env, info_argv[2], NULL, async_resource_name, 0, 1, NULL, NULL, NULL, tsfn_to_js_proxy, &threadsafe_fn);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  ow_start_hook_multi(target_window_titles, title_count, overlay_window_id);
+
+  // Free the titles array after the native function has been called
+  // (the native function will make its own copy)
+  for (uint32_t i = 0; i < title_count; i++) {
+    free(target_window_titles[i]);
+  }
+  free(target_window_titles);
+
+  return NULL;
+}
+
 napi_value AddonActivateOverlay(napi_env _env, napi_callback_info _info) {
   ow_activate_overlay();
   return NULL;
@@ -249,6 +331,11 @@ NAPI_MODULE_INIT() {
   status = napi_create_function(env, NULL, 0, AddonScreenshot, NULL, &export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
   status = napi_set_named_property(env, exports, "screenshot", export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
+
+  status = napi_create_function(env, NULL, 0, AddonStartMulti, NULL, &export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
+  status = napi_set_named_property(env, exports, "startMulti", export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
 
   status = napi_add_env_cleanup_hook(env, AddonCleanUp, NULL);

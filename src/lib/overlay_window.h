@@ -38,6 +38,10 @@ struct ow_event_attach {
   int is_fullscreen;
   //
   struct ow_window_bounds bounds;
+  // current matching window title multi header mode
+  char* matched_title;
+  // window id for debugging
+  uint32_t window_id;
 };
 
 struct ow_event_fullscreen {
@@ -63,6 +67,11 @@ static uv_thread_t hook_tid;
 // Window ID format depends on platform, see
 // https://www.electronjs.org/docs/api/browser-window#wingetnativewindowhandle
 void ow_start_hook(char* target_window_title, void* overlay_window_id);
+
+// Passed multiple titles and a pointer to the platform-specific window ID.
+// Window ID format depends on platform, see
+// https://www.electronjs.org/docs/api/browser-window#wingetnativewindowhandle
+void ow_start_hook_multi(char** target_window_titles, int title_count, void* overlay_window_id);
 
 void ow_activate_overlay();
 

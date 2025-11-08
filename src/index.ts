@@ -12,6 +12,12 @@ interface AddonExports {
     cb: (e: any) => void
   ): void
 
+  startMulti(
+    overlayWindowId: Buffer | undefined,
+    targetWindowTitles: string[],
+    cb: (e: any) => void
+  ): void
+
   activateOverlay(): void
   focusTarget(): void
   screenshot(): Buffer
@@ -33,6 +39,8 @@ export interface AttachEvent {
   y: number
   width: number
   height: number
+  matchedTitle?: string  // the window title that currently matches
+  windowId?: number      // window id for debugging
 }
 
 export interface FullscreenEvent {
@@ -79,6 +87,8 @@ class OverlayControllerGlobal {
   // The height of a title bar on a standard window. Only measured on Mac
   private macTitleBarHeight = 0
   private attachOptions: AttachOptions = {}
+  private isMultiTitleMode = false
+  private targetWindowTitles: string[] = []
 
   readonly events = new EventEmitter()
 
@@ -262,6 +272,8 @@ class OverlayControllerGlobal {
       this.isInitialized = true
     }
     this.electronWindow = electronWindow
+    this.isMultiTitleMode = false
+    this.targetWindowTitles = [targetWindowTitle]
 
     this.electronWindow?.on('blur', () => {
       if (!this.targetHasFocus && this.focusNext !== 'target') {
@@ -282,6 +294,58 @@ class OverlayControllerGlobal {
       this.electronWindow?.getNativeWindowHandle(),
       targetWindowTitle,
       this.handler.bind(this))
+  }
+
+  attachByTitles (electronWindow: BrowserWindow | undefined, targetWindowTitles: string[], options: AttachOptions = {}) {
+    if (this.isInitialized) {
+      throw new Error('Library can be initialized only once.')
+    } else {
+      this.isInitialized = true
+    }
+    
+    if (!targetWindowTitles || targetWindowTitles.length === 0) {
+      throw new Error('targetWindowTitles must be a non-empty array')
+    }
+    
+    this.electronWindow = electronWindow
+    this.isMultiTitleMode = true
+    this.targetWindowTitles = [...targetWindowTitles]
+
+    this.electronWindow?.on('blur', () => {
+      if (!this.targetHasFocus && this.focusNext !== 'target') {
+        this.electronWindow!.hide()
+      }
+    })
+
+    this.electronWindow?.on('focus', () => {
+      this.focusNext = undefined
+    })
+
+    this.attachOptions = options
+    if (isMac) {
+      this.calculateMacTitleBarHeight()
+    }
+
+    lib.startMulti(
+      this.electronWindow?.getNativeWindowHandle(),
+      this.targetWindowTitles,
+      this.handler.bind(this))
+  }
+
+  // Get current matched window title
+  getCurrentMatchedTitle(): string | undefined {
+    // This method will provide actual value after native layer implementation
+    return undefined
+  }
+
+  // Get all target window titles
+  getTargetWindowTitles(): string[] {
+    return [...this.targetWindowTitles]
+  }
+
+  // Check if multi-title mode is enabled
+  isMultiTitleModeEnabled(): boolean {
+    return this.isMultiTitleMode
   }
 
   // buffer suitable for use in `nativeImage.createFromBitmap`

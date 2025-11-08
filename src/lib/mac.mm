@@ -33,7 +33,9 @@ AXError _AXUIElementGetWindow(AXUIElementRef, CGWindowID *out);
 static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow);
 
 struct ow_target_window {
-  const char *title;
+  char **titles;
+  int title_count;
+  char *current_title;
   /** Set to -1 if not initialized yet */
   pid_t pid;
   /** Window matching the target title, or null */
@@ -65,7 +67,9 @@ struct ow_frontmost_app {
  * function for more centralized logic.
  */
 static struct ow_target_window targetInfo = {
-    .title = NULL,
+    .titles = NULL,
+    .title_count = 0,
+    .current_title = NULL,
     .pid = -1,
     .element = NULL,
     .observer = NULL,
@@ -505,7 +509,25 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
 
   // For the rest of this function, only run if the title matches
   NSString *title = getTitleForWindow(frontmostWindow);
-  if (!title || ![title isEqualToString:@(targetInfo.title)]) {
+  if (!title) {
+    return;
+  }
+  
+  bool titleMatches = false;
+  for (int i = 0; i < targetInfo.title_count; i++) {
+    if ([title isEqualToString:@(targetInfo.titles[i])]) {
+      titleMatches = true;
+      // Update current matched title
+      if (targetInfo.current_title != NULL) {
+        free(targetInfo.current_title);
+      }
+      targetInfo.current_title = malloc([title lengthOfBytesUsingEncoding:NSUTF8StringEncoding] + 1);
+      strcpy(targetInfo.current_title, [title UTF8String]);
+      break;
+    }
+  }
+  
+  if (!titleMatches) {
     return;
   }
 
@@ -528,7 +550,18 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
   struct ow_event e = {
       .type = OW_ATTACH,
       // has_access is set to -1 for undefined
-      .data.attach = {.has_access = -1, .is_fullscreen = fullscreen}};
+      .data.attach = {
+        .has_access = -1,
+        .is_fullscreen = fullscreen,
+        .matched_title = NULL,
+        .window_id = (uint32_t)frontmostWindowID
+      }};
+  
+  if (targetInfo.current_title != NULL) {
+    e.data.attach.matched_title = malloc(strlen(targetInfo.current_title) + 1);
+    strcpy(e.data.attach.matched_title, targetInfo.current_title);
+  }
+  
   bool getBoundsSuccess = getBounds(frontmostWindowID, &e.data.attach.bounds);
   if (getBoundsSuccess) {
     // emit OW_ATTACH
@@ -543,6 +576,10 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
     // something went wrong, did the target window die right after becoming
     // active?
     targetWindowID = 0;
+  }
+  
+  if (e.data.attach.matched_title != NULL) {
+    free(e.data.attach.matched_title);
   }
 }
 
@@ -636,7 +673,34 @@ static void hookThread(void *_arg) {
 }
 
 void ow_start_hook(char *target_window_title, void *overlay_window_id) {
-  targetInfo.title = target_window_title;
+  // Single title mode, convert to multi-title array
+  targetInfo.titles = malloc(sizeof(char*));
+  targetInfo.titles[0] = malloc(strlen(target_window_title) + 1);
+  strcpy(targetInfo.titles[0], target_window_title);
+  targetInfo.title_count = 1;
+  targetInfo.current_title = NULL;
+  
+  if (overlay_window_id != NULL) {
+    // Cast to a weak pointer to avoid taking ownership of the view
+    NSView *overlayView = *(NSView * __weak *)(overlay_window_id);
+    NSWindow *overlayWindow = [overlayView window];
+    overlayInfo.window = overlayWindow;
+  }
+
+  uv_thread_create(&hook_tid, hookThread, NULL);
+}
+
+void ow_start_hook_multi(char** target_window_titles, int title_count, void* overlay_window_id) {
+  // Multi-title mode
+  targetInfo.title_count = title_count;
+  targetInfo.titles = malloc(sizeof(char*) * title_count);
+  targetInfo.current_title = NULL;
+  
+  for (int i = 0; i < title_count; i++) {
+    targetInfo.titles[i] = malloc(strlen(target_window_titles[i]) + 1);
+    strcpy(targetInfo.titles[i], target_window_titles[i]);
+  }
+  
   if (overlay_window_id != NULL) {
     // Cast to a weak pointer to avoid taking ownership of the view
     NSView *overlayView = *(NSView * __weak *)(overlay_window_id);

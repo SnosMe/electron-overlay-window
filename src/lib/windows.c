@@ -10,7 +10,9 @@
 
 struct ow_target_window
 {
-  char* title;
+  char** titles;
+  int title_count;
+  char* current_title;
   HWND hwnd;
   HWINEVENTHOOK location_hook;
   HWINEVENTHOOK destroy_hook;
@@ -28,7 +30,9 @@ static HWINEVENTHOOK fg_window_namechange_hook = NULL;
 static UINT WM_OVERLAY_UIPI_TEST = WM_NULL;
 
 static struct ow_target_window target_info = {
-  .title = NULL,
+  .titles = NULL,
+  .title_count = 0,
+  .current_title = NULL,
   .hwnd = NULL,
   .location_hook = NULL,
   .destroy_hook = NULL,
@@ -173,7 +177,20 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   if (!get_title(hwnd, &title) || title == NULL) {
     return;
   }
-  bool is_equal = (strcmp(title, target_info->title) == 0);
+  
+  bool is_equal = false;
+  for (int i = 0; i < target_info->title_count; i++) {
+    if (strcmp(title, target_info->titles[i]) == 0) {
+      is_equal = true;
+      // Update current matched title
+      if (target_info->current_title != NULL) {
+        free(target_info->current_title);
+      }
+      target_info->current_title = malloc(strlen(title) + 1);
+      strcpy(target_info->current_title, title);
+      break;
+    }
+  }
   free(title);
   if (!is_equal) {
     return;
@@ -205,9 +222,17 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
     .type = OW_ATTACH,
     .data.attach = {
       .has_access = -1,
-      .is_fullscreen = -1
+      .is_fullscreen = -1,
+      .matched_title = NULL,
+      .window_id = (uint32_t)(uintptr_t)target_info->hwnd
     }
   };
+  
+  if (target_info->current_title != NULL) {
+    e.data.attach.matched_title = malloc(strlen(target_info->current_title) + 1);
+    strcpy(e.data.attach.matched_title, target_info->current_title);
+  }
+  
   e.data.attach.has_access = has_uipi_access(target_info->hwnd);
   if (get_content_bounds(target_info->hwnd, &e.data.attach.bounds)) {
     // emit OW_ATTACH
@@ -220,6 +245,10 @@ static void check_and_handle_window(HWND hwnd, struct ow_target_window* target_i
   else {
     // something went wrong, did the target window die right after becoming active?
     target_info->hwnd = NULL;
+  }
+  
+  if (e.data.attach.matched_title != NULL) {
+    free(e.data.attach.matched_title);
   }
 }
 
@@ -336,7 +365,31 @@ static void hook_thread(void* _arg) {
 }
 
 void ow_start_hook(char* target_window_title, void* overlay_window_id) {
-  target_info.title = target_window_title;
+  // Single title mode, convert to multi-title array
+  target_info.titles = malloc(sizeof(char*));
+  target_info.titles[0] = malloc(strlen(target_window_title) + 1);
+  strcpy(target_info.titles[0], target_window_title);
+  target_info.title_count = 1;
+  target_info.current_title = NULL;
+  
+  if (overlay_window_id != NULL) {
+    overlay_info.hwnd = *((HWND*)overlay_window_id);
+  }
+  WM_OVERLAY_UIPI_TEST = RegisterWindowMessage("ELECTRON_OVERLAY_UIPI_TEST");
+  uv_thread_create(&hook_tid, hook_thread, NULL);
+}
+
+void ow_start_hook_multi(char** target_window_titles, int title_count, void* overlay_window_id) {
+  // Multi-title mode
+  target_info.title_count = title_count;
+  target_info.titles = malloc(sizeof(char*) * title_count);
+  target_info.current_title = NULL;
+  
+  for (int i = 0; i < title_count; i++) {
+    target_info.titles[i] = malloc(strlen(target_window_titles[i]) + 1);
+    strcpy(target_info.titles[i], target_window_titles[i]);
+  }
+  
   if (overlay_window_id != NULL) {
     overlay_info.hwnd = *((HWND*)overlay_window_id);
   }

@@ -12,8 +12,6 @@ static xcb_atom_t ATOM_NET_WM_NAME;
 static xcb_atom_t ATOM_UTF8_STRING;
 static xcb_atom_t ATOM_NET_WM_STATE;
 static xcb_atom_t ATOM_NET_WM_STATE_FULLSCREEN;
-static xcb_atom_t ATOM_NET_WM_STATE_SKIP_TASKBAR;
-static xcb_atom_t ATOM_NET_WM_STATE_SKIP_PAGER;
 
 struct ow_target_window
 {
@@ -278,17 +276,12 @@ static void hook_thread(void* _arg) {
   atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN"), NULL);
   ATOM_NET_WM_STATE_FULLSCREEN = atom_reply->atom;
   free(atom_reply);
-  atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_SKIP_TASKBAR"), "_NET_WM_STATE_SKIP_TASKBAR"), NULL);
-  ATOM_NET_WM_STATE_SKIP_TASKBAR = atom_reply->atom;
-  free(atom_reply);
-  atom_reply = xcb_intern_atom_reply(x_conn, xcb_intern_atom(x_conn, 0, strlen("_NET_WM_STATE_SKIP_PAGER"), "_NET_WM_STATE_SKIP_PAGER"), NULL);
-  ATOM_NET_WM_STATE_SKIP_PAGER = atom_reply->atom;
-  free(atom_reply);
 
   if (overlay_info.window_id != XCB_WINDOW_NONE) {
-    // this functionality was removed in Electron 20.0
-    xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_TASKBAR);
-    xcb_change_property(x_conn, XCB_PROP_MODE_APPEND, overlay_info.window_id, ATOM_NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &ATOM_NET_WM_STATE_SKIP_PAGER);
+    // Electron window is created with `show: false`,
+    // this override-redirect is being set before window is mapped.
+    uint32_t values[] = {1};
+    xcb_change_window_attributes(x_conn, overlay_info.window_id, XCB_CW_OVERRIDE_REDIRECT, values);
   }
 
   // listen for `_NET_ACTIVE_WINDOW` changes
@@ -322,7 +315,8 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
 }
 
 void ow_activate_overlay() {
-  // noop
+  xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, overlay_info.window_id, XCB_CURRENT_TIME);
+  xcb_flush(x_conn);
 }
 
 void ow_focus_target() {

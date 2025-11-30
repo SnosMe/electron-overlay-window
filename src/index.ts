@@ -91,7 +91,7 @@ class OverlayControllerGlobal {
         this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
       if (e.isFullscreen !== undefined) {
-        this.handleFullscreen(e.isFullscreen, e)
+        this.handleFullscreen(e.isFullscreen)
       }
       this.targetBounds = e
       this.updateOverlayBounds()
@@ -137,7 +137,7 @@ class OverlayControllerGlobal {
     })
   }
 
-  private async handleFullscreen(isFullscreen: boolean, newBounds: AttachEvent | undefined = undefined) {
+  private async handleFullscreen(isFullscreen: boolean) {
     if (!this.electronWindow) return
 
     if (isMac) {
@@ -153,15 +153,6 @@ class OverlayControllerGlobal {
         // Set it back to `lastBounds` as set before fullscreen
         this.updateOverlayBounds();
       }
-    } else {
-      // Update bounds to match target, so that overlay enters fullscreen on correct monitor in
-      // multi-monitor configurations. newBounds is true when trigger is 'attach' event, solves
-      // fullscreen attach when target window us running before overlay (see issue #44, pr #45).
-      if (newBounds !== undefined) {
-        this.targetBounds = newBounds
-        this.updateOverlayBounds()
-      }
-      this.electronWindow.setFullScreen(isFullscreen)
     }
   }
 
@@ -246,7 +237,11 @@ class OverlayControllerGlobal {
     }
     this.focusNext = 'overlay'
     this.electronWindow.setIgnoreMouseEvents(false)
-    this.electronWindow.focus()
+    if (isLinux) {
+      lib.activateOverlay()
+    } else {
+      this.electronWindow.focus()
+    }
   }
 
   focusTarget () {

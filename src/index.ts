@@ -61,7 +61,7 @@ export const OVERLAY_WINDOW_OPTS: BrowserWindowConstructorOptions = {
   show: false,
   transparent: true,
   // let Chromium to accept any size changes from OS
-  resizable: true,
+  resizable: !isLinux,
   // disable shadow for Mac OS
   hasShadow: !isMac,
   // float above all windows on Mac OS

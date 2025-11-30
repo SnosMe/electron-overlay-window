@@ -2,19 +2,19 @@
 
 ## Building for release
 
-Running `yarn prebuild` and `yarn tsc` should build everything needed
+Running `npm run prebuild` and `npx tsc` should build everything needed
 for release.
 
 ## Testing with the demo app
 
-When developing, running `npm run demo:electron` or `yarn demo:electron`
+When developing, running `npm run demo:electron` or `npm run demo:electron`
 will build and run a demo app that's useful for testing this.
 
 ## Debugging native Mac code
 
 1.  Create an XCode project by running `node-gyp configure --debug -- -f xcode`.
 2.  Change to debug mode by running `node-gyp configure --debug`.
-3.  Run the Electron demo by running `yarn demo:electron`
+3.  Run the Electron demo by running `npm run demo:electron`
 3.  Go into XCode, open the project in `build/binding.xcodeproj`, and then use
     the "Debug > Attach to Process" menu to attach to the Electron process.
 

@@ -9,7 +9,7 @@ Responsible for:
   - Keeping position and size of overlay window with target in sync
   - Emits lifecycle events
 
-![yarn demo:electron](https://i.imgur.com/Ej190zc.gif)
+![npm run demo:electron](https://i.imgur.com/Ej190zc.gif)
 
 Important notes:
   - You can initialize library only once (Electron window must never die, and title by which target window is searched cannot be changed)

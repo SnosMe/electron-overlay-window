@@ -325,8 +325,7 @@ void ow_focus_target() {
   event->type = ATOM_NET_ACTIVE_WINDOW;
   event->window = target_info.window_id;
   event->format = 32;
-  event->data.data32[0] = 1; // source indication = app
-  event->data.data32[2] = overlay_info.window_id; // requestor's currently active window
+  event->data.data32[0] = 2; // source indication = pager
 
   xcb_send_event(x_conn, 0, root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (char*)event);
   xcb_flush(x_conn);

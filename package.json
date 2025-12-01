@@ -1,6 +1,6 @@
 {
   "name": "electron-overlay-window",
-  "version": "3.3.1",
+  "version": "4.0.0",
   "author": {
     "name": "Alexander Drozdov"
   },
@@ -33,9 +33,9 @@
     "prebuilds"
   ],
   "devDependencies": {
-    "@types/node": "18.x.x",
+    "@types/node": "22.x.x",
     "@types/throttle-debounce": "5.x.x",
-    "electron": "24.x.x",
+    "electron": "39.x.x",
     "prebuildify": "6.x.x",
     "typescript": "5.x.x"
   },

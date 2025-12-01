@@ -217,6 +217,8 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
 
 #ifdef _WIN32
   ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
+#elif __APPLE__
+  ow_screenshot(img_data, last_reported_bounds.width, last_reported_bounds.height);
 #endif
 
   return img_buffer;

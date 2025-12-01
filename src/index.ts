@@ -281,7 +281,7 @@ class OverlayControllerGlobal {
 
   // buffer suitable for use in `nativeImage.createFromBitmap`
   screenshot (): Buffer {
-    if (process.platform !== 'win32') {
+    if (process.platform !== 'win32' && !isMac) {
       throw new Error('Not implemented on your platform.')
     }
     return lib.screenshot()

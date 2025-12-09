@@ -46,6 +46,8 @@ struct ow_target_window {
 };
 
 struct ow_overlay_window {
+  /** Set to -1 if not initialized */
+  pid_t pid;
   NSWindow *window;
 };
 
@@ -73,7 +75,10 @@ static struct ow_target_window targetInfo = {
     .isFullscreen = false,
 };
 
-static struct ow_overlay_window overlayInfo = {.window = NULL};
+static struct ow_overlay_window overlayInfo = {
+    .pid = -1,
+    .window = NULL,
+};
 
 /**
  * Unlike on Windows and Linux, we have no way to listen to all window
@@ -150,6 +155,23 @@ static NSString *getTitleForWindow(AXUIElementRef window) {
 
   NSString *title = CFBridgingRelease(cfTitle);
   return title;
+}
+
+/**
+ * If an element lacks a close button, it may be a dialog or subpanel of a
+ * larger window. We may not want to fire a blur event when the user focuses
+ * it.
+ */
+static bool hasCloseButton(AXUIElementRef window) {
+  CFTypeRef closeButtonValue = NULL;
+  if (AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute,
+                                    &closeButtonValue) == kAXErrorSuccess) {
+    if (closeButtonValue != NULL) {
+      CFRelease(closeButtonValue);
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -452,6 +474,12 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
   CGWindowID overlayWindowID =
       overlayInfo.window ? (CGWindowID)[overlayInfo.window windowNumber] : 0;
 
+  if (frontmostWindowID == overlayWindowID) {
+    // We're only given the window ID on initialization, so this is the easiest
+    // way to link a pid to the overlay window
+    overlayInfo.pid = pid;
+  }
+
   // Emit blur/detach/focus if the frontmost window has changed
   // We count the target as focused even if the overlay is focused, since
   // we don't want to hide the overlay when the user is using it
@@ -464,7 +492,15 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
     // NSLog(@"checkAndHandleWindow: focus");
     ow_emit_event(&e);
   } else if (!targetFocused && targetInfo.isFocused) {
-    if (targetInfo.isDestroyed || frontmostWindowID != overlayWindowID) {
+    bool isOverlayFocused = frontmostWindowID == overlayWindowID;
+    bool isOverlayOrTargetChildFocused =
+        // Windows without close buttons are often child windows for things
+        // like picking a file to open
+        !hasCloseButton(frontmostWindow) &&
+        (pid == overlayInfo.pid || pid == targetInfo.pid);
+    bool stillFocused = isOverlayFocused || isOverlayOrTargetChildFocused;
+
+    if (targetInfo.isDestroyed || !stillFocused) {
       targetInfo.isFocused = false;
       struct ow_event e = {.type = OW_BLUR};
       // NSLog(@"checkAndHandleWindow: blur");
@@ -505,6 +541,7 @@ static void checkAndHandleWindow(pid_t pid, AXUIElementRef frontmostWindow) {
 
   // For the rest of this function, only run if the title matches
   NSString *title = getTitleForWindow(frontmostWindow);
+  // NSLog(@"checkAndHandleWindow: title %@", title);
   if (!title || ![title isEqualToString:@(targetInfo.title)]) {
     return;
   }

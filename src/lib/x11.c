@@ -320,14 +320,6 @@ void ow_activate_overlay() {
 }
 
 void ow_focus_target() {
-  xcb_client_message_event_t* event = calloc(32, 1);
-  event->response_type = XCB_CLIENT_MESSAGE;
-  event->type = ATOM_NET_ACTIVE_WINDOW;
-  event->window = target_info.window_id;
-  event->format = 32;
-  event->data.data32[0] = 2; // source indication = pager
-
-  xcb_send_event(x_conn, 0, root, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT, (char*)event);
+  xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, target_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
-  free(event);
 }

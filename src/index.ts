@@ -72,7 +72,7 @@ class OverlayControllerGlobal {
   private isInitialized = false
   private electronWindow?: BrowserWindow
   // Exposed so that apps can get the current bounds of the target
-  // NOTE: stores screen physical rect on Windows
+  // NOTE: stores screen physical rect on Windows and linux
   targetBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
   targetHasFocus = false
   private focusNext: 'overlay' | 'target' | undefined
@@ -163,6 +163,22 @@ class OverlayControllerGlobal {
 
     if (process.platform === 'win32') {
       lastBounds = screen.screenToDipRect(this.electronWindow, this.targetBounds)
+    } else if (isLinux) {
+      // Currently, CEF lacks wayland support for scaling on these APIs, and doesn't provide screenToDipRect on linux.
+      //
+      // However, we expect X11 to always use a constant scale factor between screens, so this should be sufficient
+      // there.
+      const tl = screen.screenToDipPoint({ x: lastBounds.x, y: lastBounds.y })
+      // Best effort width/height for e.g. wayland, but may not be fully correct when windows span displays.
+      const br = screen.screenToDipPoint({ x: lastBounds.x + lastBounds.width, y: lastBounds.y + lastBounds.height })
+
+      //const oldBounds = { ...lastBounds }
+      lastBounds = { x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y }
+      //console.log(`Scaling from: ${oldBounds.width.toFixed(1)}x${oldBounds.height.toFixed(1)}\n`   +
+      //            `           @: [${oldBounds.x.toFixed(1)}, ${oldBounds.y.toFixed(1)}]\n`         +
+      //            `          to: ${lastBounds.width.toFixed(1)}x${lastBounds.height.toFixed(1)}\n` +
+      //            `           @: [${lastBounds.x.toFixed(1)}, ${lastBounds.y.toFixed(1)}],\n`      +
+      //            `       Ratio: ${(oldBounds.width/lastBounds.width).toFixed(2)}`)
     }
     this.electronWindow.setBounds(lastBounds)
 

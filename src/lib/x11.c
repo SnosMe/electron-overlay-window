@@ -1,11 +1,12 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <xcb/xcb.h>
 #include "overlay_window.h"
 
 static xcb_connection_t* x_conn;
+static pthread_mutex_t x_conn_mutex = PTHREAD_MUTEX_INITIALIZER;
 static xcb_window_t root;
 static xcb_atom_t ATOM_NET_ACTIVE_WINDOW;
 static xcb_atom_t ATOM_NET_WM_NAME;
@@ -299,9 +300,11 @@ static void hook_thread(void* _arg) {
 
   xcb_generic_event_t* event;
   while ((event = xcb_wait_for_event(x_conn))) {
+    pthread_mutex_lock(&x_conn_mutex);
     event->response_type = event->response_type & ~0x80;
     hook_proc(event);
     xcb_flush(x_conn);
+    pthread_mutex_unlock(&x_conn_mutex);
     free(event);
   }
 }
@@ -315,11 +318,43 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
 }
 
 void ow_activate_overlay() {
+  if (overlay_info.window_id == XCB_WINDOW_NONE) return;
+
+  pthread_mutex_lock(&x_conn_mutex);
+
+  // Send _NET_ACTIVE_WINDOW to ask the WM to activate our overlay.
+  // Even though the overlay is override-redirect (unmanaged), the WM
+  // typically processes this far enough to send FocusOut to the
+  // currently active window. This causes SDL2/Wine to release any
+  // active XGrabPointer, allowing the overlay to receive mouse clicks.
+  //
+  // data32[1] (timestamp) is intentionally 0: no user-event timestamp
+  // is available at this call site. data32[2] (requestor's current
+  // active window) is intentionally 0: we don't track this here.
+  // If a WM rejects the message due to focus-steal prevention,
+  // xcb_set_input_focus below still handles keyboard focus (no regression).
+  xcb_client_message_event_t msg = {0};
+  msg.response_type = XCB_CLIENT_MESSAGE;
+  msg.type = ATOM_NET_ACTIVE_WINDOW;
+  msg.window = overlay_info.window_id;
+  msg.format = 32;
+  msg.data.data32[0] = 2; // source indication: pager
+
+  xcb_send_event(x_conn, 0, root,
+    XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+    (const char*)&msg);
+
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, overlay_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
+
+  pthread_mutex_unlock(&x_conn_mutex);
 }
 
 void ow_focus_target() {
+  if (target_info.window_id == XCB_WINDOW_NONE) return;
+
+  pthread_mutex_lock(&x_conn_mutex);
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, target_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
+  pthread_mutex_unlock(&x_conn_mutex);
 }

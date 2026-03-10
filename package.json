@@ -21,6 +21,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "install": "node-gyp-build",
+    "prepare": "tsc -p tsconfig.json --noEmit false --skipLibCheck",
     "prebuild": "prebuildify --napi",
     "demo:electron": "node-gyp rebuild && npx tsc && electron dist/demo/electron-demo.js"
   },

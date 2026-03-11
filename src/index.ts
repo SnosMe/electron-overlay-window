@@ -248,6 +248,8 @@ class OverlayControllerGlobal {
       throw new Error('You are using the library in tracking mode')
     }
     this.focusNext = 'overlay'
+    // When usingInputRegions, this is intentionally a no-op: the X11 shape
+    // mask controls which areas accept input, not setIgnoreMouseEvents.
     this.setIgnoreMouseEvents(false)
     if (isLinux) {
       lib.activateOverlay()
@@ -258,6 +260,8 @@ class OverlayControllerGlobal {
 
   focusTarget () {
     this.focusNext = 'target'
+    // When usingInputRegions, this is intentionally a no-op: the X11 shape
+    // mask already makes non-widget areas click-through.
     this.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }

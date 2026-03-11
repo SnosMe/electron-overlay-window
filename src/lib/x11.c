@@ -383,20 +383,20 @@ void ow_set_input_regions(struct ow_input_rect* rects, uint32_t count) {
   if (overlay_info.window_id == XCB_WINDOW_NONE) return;
 
   pthread_mutex_lock(&x_conn_mutex);
-  if (count == 0) {
-    /*
-     * Passing XCB_PIXMAP_NONE to xcb_shape_mask removes the input shape
-     * entirely, restoring full-window input (the X11 default). This is
-     * distinct from setting an empty rectangle list, which would make the
-     * window receive no input at all.
-     */
-    xcb_shape_mask(x_conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT,
-      overlay_info.window_id, 0, 0, XCB_PIXMAP_NONE);
-  } else {
-    xcb_shape_rectangles(x_conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT,
-      XCB_CLIP_ORDERING_UNSORTED, overlay_info.window_id, 0, 0,
-      count, (xcb_rectangle_t*)rects);
-  }
+  /*
+   * Set the input shape to exactly the given rectangles. When count == 0
+   * this sets an empty shape, meaning the window receives no input at all
+   * and all clicks pass through to the window below. This is the correct
+   * behavior for an overlay with no visible widgets.
+   *
+   * Note: xcb_shape_mask with XCB_PIXMAP_NONE would *remove* the input
+   * shape entirely, restoring full-window input — the opposite of what
+   * we want. We intentionally always use xcb_shape_rectangles so that
+   * an empty list means "accept nothing" rather than "accept everything".
+   */
+  xcb_shape_rectangles(x_conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT,
+    XCB_CLIP_ORDERING_UNSORTED, overlay_info.window_id, 0, 0,
+    count, (xcb_rectangle_t*)rects);
   xcb_flush(x_conn);
   pthread_mutex_unlock(&x_conn_mutex);
 }

@@ -294,7 +294,7 @@ class OverlayControllerGlobal {
   /**
    * Set the clickable regions of the overlay window using X11 input shape masks.
    * Clicks outside these regions pass through to the window below.
-   * Pass an empty array to reset to full-window input (default behavior).
+   * Pass an empty array for full click-through (no regions accept input).
    *
    * Linux/X11 only. No-op on other platforms.
    */

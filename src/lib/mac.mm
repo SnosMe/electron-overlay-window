@@ -661,3 +661,10 @@ void ow_focus_target() {
   AXUIElementRef window = targetInfo.element;
   AXUIElementSetAttributeValue(window, kAXMainAttribute, kCFBooleanTrue);
 }
+
+void ow_set_input_regions(struct ow_input_rect* rects, uint32_t count) {
+  /* Input shape masking is Linux/X11-specific. On macOS the overlay uses
+   * setIgnoreMouseEvents for global click-through; per-region masking is
+   * not implemented. */
+  (void)rects; (void)count;
+}

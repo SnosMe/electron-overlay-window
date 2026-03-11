@@ -15,6 +15,7 @@ interface AddonExports {
   activateOverlay(): void
   focusTarget(): void
   screenshot(): Buffer
+  setInputRegions(regions: Array<{x: number, y: number, width: number, height: number}>): void
 }
 
 enum EventType {
@@ -79,14 +80,25 @@ class OverlayControllerGlobal {
   // The height of a title bar on a standard window. Only measured on Mac
   private macTitleBarHeight = 0
   private attachOptions: AttachOptions = {}
+  // When true, X11 input shape masks control which regions of the overlay
+  // accept mouse input. Electron's setIgnoreMouseEvents is skipped to avoid
+  // overriding the shape mask. Set automatically when setInputRegions is called.
+  private usingInputRegions = false
 
   readonly events = new EventEmitter()
+
+  // On Linux with input regions, the X11 shape mask controls click-through.
+  // Electron's setIgnoreMouseEvents would override that, so we skip it.
+  private setIgnoreMouseEvents (ignore: boolean) {
+    if (this.usingInputRegions) return
+    this.electronWindow?.setIgnoreMouseEvents(ignore)
+  }
 
   constructor () {
     this.events.on('attach', (e: AttachEvent) => {
       this.targetHasFocus = true
       if (this.electronWindow) {
-        this.electronWindow.setIgnoreMouseEvents(true)
+        this.setIgnoreMouseEvents(true)
         this.electronWindow.showInactive()
         this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
       }
@@ -128,7 +140,7 @@ class OverlayControllerGlobal {
       this.targetHasFocus = true
 
       if (this.electronWindow) {
-        this.electronWindow.setIgnoreMouseEvents(true)
+        this.setIgnoreMouseEvents(true)
         if (!this.electronWindow.isVisible()) {
           this.electronWindow.showInactive()
           this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
@@ -236,7 +248,9 @@ class OverlayControllerGlobal {
       throw new Error('You are using the library in tracking mode')
     }
     this.focusNext = 'overlay'
-    this.electronWindow.setIgnoreMouseEvents(false)
+    // When usingInputRegions, this is intentionally a no-op: the X11 shape
+    // mask controls which areas accept input, not setIgnoreMouseEvents.
+    this.setIgnoreMouseEvents(false)
     if (isLinux) {
       lib.activateOverlay()
     } else {
@@ -246,7 +260,9 @@ class OverlayControllerGlobal {
 
   focusTarget () {
     this.focusNext = 'target'
-    this.electronWindow?.setIgnoreMouseEvents(true)
+    // When usingInputRegions, this is intentionally a no-op: the X11 shape
+    // mask already makes non-widget areas click-through.
+    this.setIgnoreMouseEvents(true)
     lib.focusTarget()
   }
 
@@ -277,6 +293,20 @@ class OverlayControllerGlobal {
       this.electronWindow?.getNativeWindowHandle(),
       targetWindowTitle,
       this.handler.bind(this))
+  }
+
+  /**
+   * Set the clickable regions of the overlay window using X11 input shape masks.
+   * Clicks outside these regions pass through to the window below.
+   * Pass an empty array for full click-through (no regions accept input).
+   *
+   * Linux/X11 only. No-op on other platforms.
+   */
+  setInputRegions (regions: Array<{x: number, y: number, width: number, height: number}>) {
+    if (isLinux) {
+      this.usingInputRegions = true
+      lib.setInputRegions(regions)
+    }
   }
 
   // buffer suitable for use in `nativeImage.createFromBitmap`

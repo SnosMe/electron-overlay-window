@@ -72,6 +72,21 @@ void ow_emit_event(struct ow_event* event);
 
 void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height);
 
+// Layout must match xcb_rectangle_t; verified by static assertion in x11.c
+struct ow_input_rect {
+  int16_t x;
+  int16_t y;
+  uint16_t width;
+  uint16_t height;
+};
+
+/* Sets the X11 input shape for the overlay window to the given rectangles.
+ * Only the listed regions will receive mouse input; all other areas pass
+ * clicks through to the window below.
+ * Pass count == 0 (rects may be NULL) to accept no input at all (full
+ * click-through). No-op on non-Linux platforms. */
+void ow_set_input_regions(struct ow_input_rect* rects, uint32_t count);
+
 #ifdef __cplusplus
 }
 #endif

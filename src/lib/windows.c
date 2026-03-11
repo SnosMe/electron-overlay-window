@@ -378,3 +378,10 @@ void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height) {
   ReleaseDC(target_info.hwnd, dcSrc);
   DeleteObject(bmp);
 }
+
+void ow_set_input_regions(struct ow_input_rect* rects, uint32_t count) {
+  /* Input shape masking is Linux/X11-specific. On Windows the overlay uses
+   * setIgnoreMouseEvents for global click-through; per-region masking is
+   * not implemented. */
+  (void)rects; (void)count;
+}

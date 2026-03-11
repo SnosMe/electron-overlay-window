@@ -222,6 +222,117 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   return img_buffer;
 }
 
+/*
+ * Rectangles up to this count are allocated on the stack to avoid a
+ * heap allocation in the common case. 50 is a generous upper bound for
+ * typical overlay UIs (HUD elements, buttons, panels). Larger arrays
+ * fall back to malloc below.
+ */
+#define OW_INPUT_REGIONS_STACK_MAX 50
+
+/*
+ * N-API entry point for setInputRegions(). Validates that the argument is
+ * an array of {x, y, width, height} objects, narrows coordinates to the
+ * ranges required by xcb_rectangle_t, and forwards to ow_set_input_regions().
+ *
+ * Rectangles are built on the stack for arrays up to OW_INPUT_REGIONS_STACK_MAX
+ * elements; larger arrays use a heap allocation freed before return.
+ */
+napi_value AddonSetInputRegions(napi_env env, napi_callback_info info) {
+  napi_status status;
+
+  size_t info_argc = 1;
+  napi_value info_argv[1];
+  status = napi_get_cb_info(env, info, &info_argc, info_argv, NULL, NULL);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  bool is_array;
+  status = napi_is_array(env, info_argv[0], &is_array);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  if (!is_array) {
+    NAPI_THROW(env, NULL, "setInputRegions: argument must be an array", NULL);
+  }
+
+  uint32_t count;
+  status = napi_get_array_length(env, info_argv[0], &count);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+
+  if (count == 0) {
+    ow_set_input_regions(NULL, 0);
+    return NULL;
+  }
+
+  struct ow_input_rect stack_rects[OW_INPUT_REGIONS_STACK_MAX];
+  struct ow_input_rect* rects = stack_rects;
+  if (count > OW_INPUT_REGIONS_STACK_MAX) {
+    rects = malloc(count * sizeof(struct ow_input_rect));
+    if (rects == NULL) {
+      NAPI_THROW(env, NULL, "setInputRegions: failed to allocate memory", NULL);
+    }
+  }
+
+  for (uint32_t i = 0; i < count; i++) {
+    napi_value element;
+    status = napi_get_element(env, info_argv[0], i, &element);
+    if (status != napi_ok) goto cleanup;
+
+    napi_valuetype elem_type;
+    status = napi_typeof(env, element, &elem_type);
+    if (status != napi_ok) goto cleanup;
+    if (elem_type != napi_object) {
+      if (rects != stack_rects) free(rects);
+      NAPI_THROW(env, NULL, "setInputRegions: each region must be an object", NULL);
+    }
+
+    napi_value prop_val;
+    int32_t raw_x, raw_y;
+    uint32_t raw_w, raw_h;
+
+    status = napi_get_named_property(env, element, "x", &prop_val);
+    if (status != napi_ok) goto cleanup;
+    status = napi_get_value_int32(env, prop_val, &raw_x);
+    if (status != napi_ok) goto cleanup;
+
+    status = napi_get_named_property(env, element, "y", &prop_val);
+    if (status != napi_ok) goto cleanup;
+    status = napi_get_value_int32(env, prop_val, &raw_y);
+    if (status != napi_ok) goto cleanup;
+
+    status = napi_get_named_property(env, element, "width", &prop_val);
+    if (status != napi_ok) goto cleanup;
+    status = napi_get_value_uint32(env, prop_val, &raw_w);
+    if (status != napi_ok) goto cleanup;
+
+    status = napi_get_named_property(env, element, "height", &prop_val);
+    if (status != napi_ok) goto cleanup;
+    status = napi_get_value_uint32(env, prop_val, &raw_h);
+    if (status != napi_ok) goto cleanup;
+
+    /* xcb_rectangle_t fields are int16_t (x, y) and uint16_t (width, height).
+     * JS passes int32/uint32, so range-check before narrowing to avoid UB. */
+    if (raw_x < INT16_MIN || raw_x > INT16_MAX ||
+        raw_y < INT16_MIN || raw_y > INT16_MAX ||
+        raw_w > UINT16_MAX || raw_h > UINT16_MAX) {
+      if (rects != stack_rects) free(rects);
+      NAPI_THROW(env, NULL, "setInputRegions: coordinate value out of int16/uint16 range", NULL);
+    }
+
+    rects[i].x = (int16_t)raw_x;
+    rects[i].y = (int16_t)raw_y;
+    rects[i].width = (uint16_t)raw_w;
+    rects[i].height = (uint16_t)raw_h;
+  }
+
+  ow_set_input_regions(rects, count);
+  if (rects != stack_rects) free(rects);
+  return NULL;
+
+cleanup:
+  if (rects != stack_rects) free(rects);
+  NAPI_THROW_IF_FAILED(env, status, NULL);
+  return NULL;
+}
+
 void AddonCleanUp(void* arg) {
   // @TODO
   // UnhookWinEvent(win_event_hhook);
@@ -249,6 +360,11 @@ NAPI_MODULE_INIT() {
   status = napi_create_function(env, NULL, 0, AddonScreenshot, NULL, &export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
   status = napi_set_named_property(env, exports, "screenshot", export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
+
+  status = napi_create_function(env, NULL, 0, AddonSetInputRegions, NULL, &export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
+  status = napi_set_named_property(env, exports, "setInputRegions", export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
 
   status = napi_add_env_cleanup_hook(env, AddonCleanUp, NULL);

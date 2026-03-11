@@ -137,6 +137,11 @@ napi_value ow_event_to_js_object(napi_env env, struct ow_event* event) {
 
 void tsfn_to_js_proxy(napi_env env, napi_value js_callback, void* context, void* _event) {
   struct ow_event* event = (struct ow_event*)_event;
+  /*
+   * Linux/X11 attach/moveresize bounds passed through this boundary are
+   * already authoritative X11 virtual-desktop physical pixels (integers).
+   * They are exported to JS as-is; no CSS/DIP conversion is applied here.
+   */
   if (event->type == OW_MOVERESIZE) {
     last_reported_bounds = event->data.moveresize.bounds;
   } else if (event->type == OW_ATTACH) {

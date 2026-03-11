@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <pthread.h>
 #include <xcb/xcb.h>
 #include <xcb/shape.h>
@@ -42,6 +43,24 @@ struct ow_overlay_window
 };
 
 static xcb_window_t active_window = XCB_WINDOW_NONE;
+
+static bool geometry_debug_enabled() {
+  static int cached = -1;
+  if (cached == -1) {
+    const char* env_value = getenv("OVERLAY_WINDOW_DEBUG_GEOMETRY");
+    cached = (env_value != NULL && env_value[0] != '\0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static void log_geometry_bounds(const char* stage, const struct ow_window_bounds* bounds) {
+  if (!geometry_debug_enabled()) return;
+
+  fprintf(stderr,
+    "[overlay-window:x11] stage=%s source=authoritative-x11 "
+    "units=physical-virtual-desktop-pixels bounds={x=%d,y=%d,width=%u,height=%u}\n",
+    stage, bounds->x, bounds->y, bounds->width, bounds->height);
+}
 
 static struct ow_target_window target_info = {
   .title = NULL,
@@ -88,6 +107,9 @@ static bool get_title(xcb_window_t wid, char** title) {
 }
 
 static bool get_content_bounds(xcb_window_t wid, struct ow_window_bounds* bounds) {
+  // Linux/X11 contract: exported bounds are authoritative X11 virtual-desktop
+  // coordinates in physical pixels (integer origin + integer size), suitable
+  // for direct comparison with global mouse hooks (e.g. uiohook).
   xcb_get_geometry_reply_t* geometry = xcb_get_geometry_reply(x_conn, xcb_get_geometry(x_conn, wid), NULL);
   if (geometry == NULL) {
     return false;
@@ -126,6 +148,8 @@ static bool is_fullscreen_window(xcb_window_t wid, bool* is_fullscreen) {
 static void handle_moveresize_xevent(struct ow_target_window* target_info) {
   struct ow_window_bounds bounds;
   if (get_content_bounds(target_info->window_id, &bounds)) {
+    log_geometry_bounds("moveresize-export", &bounds);
+
     struct ow_event e = {
       .type = OW_MOVERESIZE,
       .data.moveresize = {
@@ -212,6 +236,8 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
     is_fullscreen_window(target_info->window_id, &is_fullscreen) &&
     get_content_bounds(target_info->window_id, &e.data.attach.bounds)
   ) {
+    log_geometry_bounds("attach-export", &e.data.attach.bounds);
+
     if (is_fullscreen != target_info->is_fullscreen) {
       target_info->is_fullscreen = is_fullscreen;
       e.data.attach.is_fullscreen = is_fullscreen;
@@ -326,6 +352,12 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   target_info.title = target_window_title;
   if (overlay_window_id != NULL) {
     overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
+  }
+  if (geometry_debug_enabled()) {
+    fprintf(stderr,
+      "[overlay-window:x11] stage=hook-start source=authoritative-x11 "
+      "units=physical-virtual-desktop-pixels overlay_window_id=%u\n",
+      overlay_info.window_id);
   }
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }

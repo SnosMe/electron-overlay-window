@@ -1,9 +1,22 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <xcb/xcb.h>
+#include <xcb/shape.h>
 #include "overlay_window.h"
+
+_Static_assert(sizeof(struct ow_input_rect) == sizeof(xcb_rectangle_t),
+  "ow_input_rect must be layout-compatible with xcb_rectangle_t");
+_Static_assert(offsetof(struct ow_input_rect, x) == offsetof(xcb_rectangle_t, x),
+  "ow_input_rect.x offset mismatch");
+_Static_assert(offsetof(struct ow_input_rect, y) == offsetof(xcb_rectangle_t, y),
+  "ow_input_rect.y offset mismatch");
+_Static_assert(offsetof(struct ow_input_rect, width) == offsetof(xcb_rectangle_t, width),
+  "ow_input_rect.width offset mismatch");
+_Static_assert(offsetof(struct ow_input_rect, height) == offsetof(xcb_rectangle_t, height),
+  "ow_input_rect.height offset mismatch");
 
 static xcb_connection_t* x_conn;
 static pthread_mutex_t x_conn_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -355,6 +368,35 @@ void ow_focus_target() {
 
   pthread_mutex_lock(&x_conn_mutex);
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, target_info.window_id, XCB_CURRENT_TIME);
+  xcb_flush(x_conn);
+  pthread_mutex_unlock(&x_conn_mutex);
+}
+
+void ow_set_input_regions(struct ow_input_rect* rects, uint32_t count) {
+  // x_conn is initialized by hook_thread before overlay_info.window_id
+  // is ever set, so the window_id guard below is a sufficient proxy for
+  // "x_conn is ready". Do not call this function before OW_ATTACH is received.
+  // Specifically: hook_thread sets x_conn via xcb_connect() at its very
+  // first line, then flushes before any event is processed. The JS layer
+  // only receives OW_ATTACH after hook_thread has completed setup, so
+  // the invariant (x_conn != NULL) iff (window_id != XCB_WINDOW_NONE) holds.
+  if (overlay_info.window_id == XCB_WINDOW_NONE) return;
+
+  pthread_mutex_lock(&x_conn_mutex);
+  if (count == 0) {
+    /*
+     * Passing XCB_PIXMAP_NONE to xcb_shape_mask removes the input shape
+     * entirely, restoring full-window input (the X11 default). This is
+     * distinct from setting an empty rectangle list, which would make the
+     * window receive no input at all.
+     */
+    xcb_shape_mask(x_conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT,
+      overlay_info.window_id, 0, 0, XCB_PIXMAP_NONE);
+  } else {
+    xcb_shape_rectangles(x_conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_INPUT,
+      XCB_CLIP_ORDERING_UNSORTED, overlay_info.window_id, 0, 0,
+      count, (xcb_rectangle_t*)rects);
+  }
   xcb_flush(x_conn);
   pthread_mutex_unlock(&x_conn_mutex);
 }

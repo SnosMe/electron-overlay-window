@@ -15,6 +15,7 @@ interface AddonExports {
   activateOverlay(): void
   focusTarget(): void
   screenshot(): Buffer
+  setInputRegions(regions: Array<{x: number, y: number, width: number, height: number}>): void
 }
 
 enum EventType {
@@ -277,6 +278,19 @@ class OverlayControllerGlobal {
       this.electronWindow?.getNativeWindowHandle(),
       targetWindowTitle,
       this.handler.bind(this))
+  }
+
+  /**
+   * Set the clickable regions of the overlay window using X11 input shape masks.
+   * Clicks outside these regions pass through to the window below.
+   * Pass an empty array to reset to full-window input (default behavior).
+   *
+   * Linux/X11 only. No-op on other platforms.
+   */
+  setInputRegions (regions: Array<{x: number, y: number, width: number, height: number}>) {
+    if (isLinux) {
+      lib.setInputRegions(regions)
+    }
   }
 
   // buffer suitable for use in `nativeImage.createFromBitmap`

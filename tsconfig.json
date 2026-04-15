@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
+    "target": "es2021",
     "alwaysStrict": true,
     "strict": true,
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "node20",
     "sourceMap": true,
+    "rootDir": "src",
     "outDir": "dist",
     "declaration": true
   },

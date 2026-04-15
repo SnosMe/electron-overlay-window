@@ -164,7 +164,7 @@ class OverlayControllerGlobal {
     if (process.platform === 'win32') {
       lastBounds = screen.screenToDipRect(this.electronWindow, this.targetBounds)
     } else if (isLinux) {
-      // The `xcb_get_geometry_reply` can receive physical coords under KDE's XWayland.
+      // The `xcb_get_geometry` can receive physical coords under KDE's XWayland.
       // see https://github.com/SnosMe/electron-overlay-window/pull/50
       // The following code should be a no-op on native X11.
 

@@ -45,9 +45,9 @@
   },
   "gypfile": true,
   "engines": {
-    "node": ">= 16"
+    "node": ">= 20"
   },
   "peerDependencies": {
-    "electron": ">= 18"
+    "electron": ">= 35"
   }
 }

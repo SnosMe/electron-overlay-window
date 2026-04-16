@@ -57,11 +57,13 @@ function createWindow () {
 
   makeDemoInteractive()
 
-  OverlayController.attachByTitle(
-    window,
-    process.platform === 'darwin' ? 'Untitled' : 'Notepad',
-    { hasTitleBarOnMac: true }
-  )
+  let title = ''
+  switch (process.platform) {
+    case 'win32': title = 'Untitled - Notepad'; break
+    case 'linux': title = 'Untitled * — Kate'; break
+    case 'darwin': title = 'Untitled'; break
+  }
+  OverlayController.attachByTitle(window, title, { hasTitleBarOnMac: true })
 }
 
 function makeDemoInteractive () {

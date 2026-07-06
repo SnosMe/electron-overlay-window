@@ -63,6 +63,9 @@ function createWindow () {
     case 'linux': title = 'Untitled * — Kate'; break
     case 'darwin': title = 'Untitled'; break
   }
+  // Override to test attaching to an arbitrary window without editing source,
+  // e.g. OVERLAY_TARGET_TITLE="some window title" npm run demo:electron
+  title = process.env.OVERLAY_TARGET_TITLE || title
   OverlayController.attachByTitle(window, title, { hasTitleBarOnMac: true })
 }
 

@@ -27,7 +27,11 @@ static const char* TRACKER_SCRIPT_TEMPLATE =
   "    callDBus(SERVICE, PATH, IFACE, 'Event', parts.join('\\u001f'));\n"
   "  }\n"
   "  function geom(w) {\n"
-  "    var g = w.frameGeometry;\n"
+  // x11.c's get_content_bounds() queries the X11 client window itself, not
+  // the WM-decorated frame, so it excludes title bars/borders. Use
+  // clientGeometry (not frameGeometry) here to match that contract -
+  // otherwise the overlay ends up sized/offset by the window decoration.
+  "    var g = w.clientGeometry;\n"
   // KWin scripting reports geometry in logical/DIP pixels, but the X11
   // backend (get_content_bounds in x11.c) reports physical pixels, and
   // index.ts's screenToDipPoint conversion for Linux expects the latter.
@@ -42,7 +46,7 @@ static const char* TRACKER_SCRIPT_TEMPLATE =
   "    if (w.active) {\n"
   "      send(['focus', w.internalId, 0, 0, 0, 0, '0']);\n"
   "    }\n"
-  "    w.frameGeometryChanged.connect(function() {\n"
+  "    w.clientGeometryChanged.connect(function() {\n"
   "      if (current !== w) return;\n"
   "      var g2 = geom(w);\n"
   "      send(['moveresize', w.internalId, g2[0], g2[1], g2[2], g2[3], '0']);\n"

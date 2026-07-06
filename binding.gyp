@@ -29,12 +29,13 @@
           ],
           'link_settings': {
             'libraries': [
-              '-lxcb', '-lpthread'
+              '-lxcb', '-lpthread', '<!@(pkg-config --libs dbus-1)'
             ]
           },
-          'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread'],
+          'cflags': ['-std=c99', '-pedantic', '-Wall', '-pthread', '<!@(pkg-config --cflags dbus-1)'],
       	  'sources': [
             'src/lib/x11.c',
+            'src/lib/kde_wayland.c',
           ]
         }],
         ['OS=="mac"', {

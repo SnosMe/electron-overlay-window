@@ -4,6 +4,9 @@
 #include <node_api.h>
 #include "napi_helpers.h"
 #include "overlay_window.h"
+#ifdef __linux__
+#include "kde_wayland.h"
+#endif
 
 static napi_threadsafe_function threadsafe_fn = NULL;
 static struct ow_window_bounds last_reported_bounds = {0, 0, 0, 0};
@@ -225,6 +228,9 @@ napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
 void AddonCleanUp(void* arg) {
   // @TODO
   // UnhookWinEvent(win_event_hhook);
+#ifdef __linux__
+  ow_kde_wayland_cleanup();
+#endif
 }
 
 NAPI_MODULE_INIT() {

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <xcb/xcb.h>
 #include "overlay_window.h"
+#include "kde_wayland.h"
 
 static xcb_connection_t* x_conn;
 static xcb_window_t root;
@@ -40,6 +41,12 @@ static struct ow_target_window target_info = {
 static struct ow_overlay_window overlay_info = {
   .window_id = XCB_WINDOW_NONE
 };
+
+// When true, the target window is found/tracked/focused through the KDE
+// Wayland (KWin scripting) backend instead of X11 EWMH polling below. The
+// overlay window itself always stays on XWayland, so `x_conn` is still set
+// up and used for `ow_activate_overlay()` in both modes.
+static bool using_kde_wayland_backend = false;
 
 static xcb_window_t get_active_window() {
   xcb_get_property_reply_t* prop_reply = xcb_get_property_reply(x_conn, xcb_get_property(x_conn, 0, root, ATOM_NET_ACTIVE_WINDOW, XCB_ATOM_WINDOW, 0, 1), NULL);
@@ -283,6 +290,16 @@ static void hook_thread(void* _arg) {
     uint32_t values[] = {1};
     xcb_change_window_attributes(x_conn, overlay_info.window_id, XCB_CW_OVERRIDE_REDIRECT, values);
   }
+  xcb_flush(x_conn);
+
+  if (using_kde_wayland_backend) {
+    // Target discovery/tracking/focusing is handled by the KDE Wayland
+    // backend instead (it can see native-Wayland windows that have no
+    // XWayland-backed X11 window at all). `x_conn` stays open and is
+    // still used by `ow_activate_overlay()`.
+    ow_kde_wayland_start_hook(target_info.title);
+    return;
+  }
 
   // listen for `_NET_ACTIVE_WINDOW` changes
   uint32_t mask[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };
@@ -311,6 +328,7 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
   if (overlay_window_id != NULL) {
     overlay_info.window_id = *((xcb_window_t*)overlay_window_id);
   }
+  using_kde_wayland_backend = ow_kde_wayland_is_available();
   uv_thread_create(&hook_tid, hook_thread, NULL);
 }
 
@@ -320,6 +338,10 @@ void ow_activate_overlay() {
 }
 
 void ow_focus_target() {
+  if (using_kde_wayland_backend) {
+    ow_kde_wayland_focus_target();
+    return;
+  }
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, target_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
 }

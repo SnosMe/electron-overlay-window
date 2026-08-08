@@ -46,6 +46,17 @@ static xcb_window_t get_active_window() {
   if (prop_reply == NULL) {
     return XCB_WINDOW_NONE;
   }
+  // `_NET_ACTIVE_WINDOW` can come back present-but-empty -- most notably under
+  // XWayland, where the compositor clears it whenever focus moves to a native
+  // Wayland client. Dereferencing the value without checking its length reads
+  // past the reply and yields a garbage window id, which then gets used for
+  // further X requests.
+  if (prop_reply->type != XCB_ATOM_WINDOW ||
+      prop_reply->format != 32 ||
+      xcb_get_property_value_length(prop_reply) < (int)sizeof(xcb_window_t)) {
+    free(prop_reply);
+    return XCB_WINDOW_NONE;
+  }
   xcb_window_t active_window = *((xcb_window_t*)xcb_get_property_value(prop_reply));
   free(prop_reply);
   return active_window;
@@ -236,7 +247,7 @@ static void hook_proc(xcb_generic_event_t* generic_event) {
       xcb_window_t old_active = active_window;
       active_window = get_active_window();
 
-      if (old_active != target_info.window_id) {
+      if (old_active != target_info.window_id && old_active != XCB_WINDOW_NONE) {
         uint32_t mask[] = { XCB_EVENT_MASK_NO_EVENT };
         xcb_change_window_attributes(x_conn, old_active, XCB_CW_EVENT_MASK, mask);
       }
@@ -299,10 +310,25 @@ static void hook_thread(void* _arg) {
 
   xcb_generic_event_t* event;
   while ((event = xcb_wait_for_event(x_conn))) {
+    // response_type 0 is an X11 error reply, not an event. These are expected:
+    // windows we track can be destroyed between us seeing them and querying
+    // them, which yields BadWindow. Skip them rather than reinterpreting the
+    // error struct as an event.
+    if ((event->response_type & ~0x80) == 0) {
+      free(event);
+      continue;
+    }
     event->response_type = event->response_type & ~0x80;
     hook_proc(event);
     xcb_flush(x_conn);
     free(event);
+  }
+
+  // `xcb_wait_for_event` only returns NULL on a connection error. Without this
+  // the hook thread exits silently and the overlay stops tracking forever with
+  // no indication of why.
+  if (xcb_connection_has_error(x_conn)) {
+    fprintf(stderr, "[overlay-window] X11 connection lost, window tracking stopped\n");
   }
 }
 

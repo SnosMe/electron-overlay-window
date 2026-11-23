@@ -41,6 +41,15 @@ static struct ow_overlay_window overlay_info = {
   .window_id = XCB_WINDOW_NONE
 };
 
+// The overlay is override-redirect, so no window manager keeps it on top.
+// Some compositors (e.g. COSMIC under XWayland) restack the target above it,
+// after which clicks pass through to the game. Re-raise it explicitly.
+static void raise_overlay() {
+  if (overlay_info.window_id == XCB_WINDOW_NONE) return;
+  uint32_t values[] = { XCB_STACK_MODE_ABOVE };
+  xcb_configure_window(x_conn, overlay_info.window_id, XCB_CONFIG_WINDOW_STACK_MODE, values);
+}
+
 static xcb_window_t get_active_window() {
   xcb_get_property_reply_t* prop_reply = xcb_get_property_reply(x_conn, xcb_get_property(x_conn, 0, root, ATOM_NET_ACTIVE_WINDOW, XCB_ATOM_WINDOW, 0, 1), NULL);
   if (prop_reply == NULL) {
@@ -158,6 +167,7 @@ static void check_and_handle_window(xcb_window_t wid, struct ow_target_window* t
     else if (target_info->window_id == wid) {
       if (!target_info->is_focused) {
         target_info->is_focused = true;
+        raise_overlay();
         struct ow_event e = { .type = OW_FOCUS };
         ow_emit_event(&e);
       }
@@ -315,6 +325,7 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
 }
 
 void ow_activate_overlay() {
+  raise_overlay();
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, overlay_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
 }

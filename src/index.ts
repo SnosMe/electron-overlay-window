@@ -14,6 +14,7 @@ interface AddonExports {
 
   activateOverlay(): void
   focusTarget(): void
+  _x11RaiseOverlay?(): void
   screenshot(): Buffer
 }
 
@@ -132,6 +133,8 @@ class OverlayControllerGlobal {
         if (!this.electronWindow.isVisible()) {
           this.electronWindow.showInactive()
           this.electronWindow.setAlwaysOnTop(true, 'screen-saver')
+        } else if (process.platform === 'linux') {
+          lib._x11RaiseOverlay!()
         }
       }
     })

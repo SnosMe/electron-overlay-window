@@ -201,10 +201,17 @@ napi_value AddonActivateOverlay(napi_env _env, napi_callback_info _info) {
   return NULL;
 }
 
-napi_value AddonFocusTarget(napi_env env, napi_callback_info info) {
+napi_value AddonFocusTarget(napi_env _env, napi_callback_info _info) {
   ow_focus_target();
   return NULL;
 }
+
+#ifdef __linux__
+napi_value AddonX11RaiseOverlay(napi_env _env, napi_callback_info _info) {
+  ow_x11_raise_overlay();
+  return NULL;
+}
+#endif
 
 napi_value AddonScreenshot(napi_env env, napi_callback_info info) {
   napi_status status;
@@ -245,6 +252,13 @@ NAPI_MODULE_INIT() {
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
   status = napi_set_named_property(env, exports, "focusTarget", export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
+
+#ifdef __linux__
+  status = napi_create_function(env, NULL, 0, AddonX11RaiseOverlay, NULL, &export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");
+  status = napi_set_named_property(env, exports, "_x11RaiseOverlay", export_fn);
+  NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_set_named_property");
+#endif
 
   status = napi_create_function(env, NULL, 0, AddonScreenshot, NULL, &export_fn);
   NAPI_FATAL_IF_FAILED(status, "NAPI_MODULE_INIT", "napi_create_function");

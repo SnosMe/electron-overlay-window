@@ -72,6 +72,8 @@ void ow_emit_event(struct ow_event* event);
 
 void ow_screenshot(uint8_t* out, uint32_t width, uint32_t height);
 
+void ow_x11_raise_overlay();
+
 #ifdef __cplusplus
 }
 #endif

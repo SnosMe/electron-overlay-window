@@ -6,10 +6,10 @@ on:
 
 jobs:
   prebuild-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
     - run: npm ci
     - run: npm run prebuild
     - uses: actions/upload-artifact@v7
@@ -20,8 +20,8 @@ jobs:
   prebuild-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
     - run: |
         sudo apt-get update
         sudo apt-get install -y libxcb1-dev
@@ -35,8 +35,8 @@ jobs:
   prebuild-darwin:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
     - run: npm ci
     - run: npm run prebuild -- --arch x64
     - run: npm run prebuild -- --arch arm64
@@ -52,7 +52,7 @@ jobs:
     - prebuild-darwin
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: actions/download-artifact@v8
       with:
         name: windows
@@ -65,7 +65,7 @@ jobs:
       with:
         name: darwin
         path: prebuilds
-    - uses: actions/setup-node@v6
+    - uses: actions/setup-node@v7
     - run: npm ci --ignore-scripts
     - run: npx tsc
     - run: npm pack

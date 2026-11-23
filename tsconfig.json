@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
     "target": "es2021",
-    "alwaysStrict": true,
-    "strict": true,
     "module": "node20",
     "sourceMap": true,
     "rootDir": "src",

@@ -45,10 +45,13 @@ static struct ow_overlay_window overlay_info = {
 // not guarantee always-on-top. On some compositors (e.g. COSMIC under XWayland),
 // raising the target window (e.g. via Alt-Tab) restacks its frame to the top,
 // which places it above the overlay.
-void ow_x11_raise_overlay() {
+void ow_x11_raise_overlay(bool flush) {
   if (overlay_info.window_id == XCB_WINDOW_NONE) return;
   uint32_t values[] = { XCB_STACK_MODE_ABOVE };
   xcb_configure_window(x_conn, overlay_info.window_id, XCB_CONFIG_WINDOW_STACK_MODE, values);
+  if (flush) {
+    xcb_flush(x_conn);
+  }
 }
 
 static xcb_window_t get_active_window() {
@@ -325,7 +328,7 @@ void ow_start_hook(char* target_window_title, void* overlay_window_id) {
 }
 
 void ow_activate_overlay() {
-  ow_x11_raise_overlay();
+  ow_x11_raise_overlay(false);
   xcb_set_input_focus(x_conn, XCB_INPUT_FOCUS_PARENT, overlay_info.window_id, XCB_CURRENT_TIME);
   xcb_flush(x_conn);
 }

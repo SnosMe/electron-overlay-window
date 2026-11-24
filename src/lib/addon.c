@@ -208,7 +208,7 @@ napi_value AddonFocusTarget(napi_env _env, napi_callback_info _info) {
 
 #ifdef __linux__
 napi_value AddonX11RaiseOverlay(napi_env _env, napi_callback_info _info) {
-  ow_x11_raise_overlay();
+  ow_x11_raise_overlay(true);
   return NULL;
 }
 #endif
